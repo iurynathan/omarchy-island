@@ -255,7 +255,46 @@ class Players:
         self.active = None
         self._unmute_to = 0.5
         self._sys_volume = self._read_sys_volume()
+        self._vol_sub = None
+        self._start_sys_volume_watch()
         Gio.bus_get(Gio.BusType.SESSION, None, self._bus_ready)
+
+    def close(self):
+        if self._vol_sub is not None:
+            try:
+                self._vol_sub.terminate()
+            except OSError:
+                pass
+            self._vol_sub = None
+
+    def _start_sys_volume_watch(self):
+        if not shutil.which("pactl"):
+            return
+
+        def work():
+            try:
+                proc = subprocess.Popen(
+                    ["pactl", "subscribe"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1,
+                )
+                self._vol_sub = proc
+                for line in proc.stdout:
+                    if self._vol_sub is not proc:
+                        break
+                    if "sink" in line or "server" in line:
+                        v = self._read_sys_volume()
+                        if abs(v - self._sys_volume) > 0.005:
+                            self._sys_volume = v
+                            GLib.idle_add(self._deliver_sys_volume, v)
+            except Exception:
+                pass
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _deliver_sys_volume(self, v):
+        if not (self.active and self.active.has_volume):
+            self.on_volume(v)
+        return False
 
     @staticmethod
     def _read_sys_volume():

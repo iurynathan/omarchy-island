@@ -685,6 +685,8 @@ class App(Gtk.Application):
     def do_shutdown(self):
         if hasattr(self, "cava"):
             self.cava.stop()
+        if hasattr(self, "player"):
+            self.player.close()
         Gtk.Application.do_shutdown(self)
 
     def restart(self):
