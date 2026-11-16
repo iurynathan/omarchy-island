@@ -392,6 +392,8 @@ class App(Gtk.Application):
                              _("Distância do topo só nesta execução"), "PX")
         self.add_main_option("reload-theme", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
                              _("Recarrega o tema do Omarchy"), None)
+        self.add_main_option("page", 0, GLib.OptionFlags.NONE, GLib.OptionArg.STRING,
+                             _("Abre uma página da ilha"), "NOME")
         self.add_main_option("restart", ord("r"), GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
                              _("Reinicia a ilha"), None)
         self.notifier = Notifier(self._notif_action)
@@ -668,6 +670,12 @@ class App(Gtk.Application):
         elif opts.get("reload-theme"):
             self._reload_omarchy_theme()
             return 0
+        if opts.get("page") and self.island is not None:
+            pg = opts["page"]
+            if pg in self.island._active_pages():
+                self.island.set_expanded(True)
+                self.island.set_pinned(True)
+                self.island.set_page(pg)
         if opts.get("settings"):
             self.open_settings()
         return 0

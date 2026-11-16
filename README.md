@@ -2,122 +2,112 @@
 
 # omarchy-island
 
-**A Dynamic Island adaptada para o Omarchy (Hyprland + Wayland).**
+**Dynamic Island nativa para o Omarchy (Hyprland + Wayland).**
 
-Baseado no [linux-island](https://github.com/mrlazarias/linux-island) de Murilo Azarias, adaptado para encaixar na barra de 26px do Omarchy, seguir os temas automaticamente e iniciar com o Hyprland.
+Baseado no [linux-island](https://github.com/mrlazarias/linux-island) de Murilo Azarias, redesenhado para se fundir à barra de 26px do Omarchy, abrir como um painel flutuante abaixo da barra, rodar em múltiplos monitores e sincronizar automaticamente com os temas e o áudio do sistema.
 
-Hora, clima, música, agenda, notificações e lembretes, tudo numa pílula elegante no topo da tela, que se abre quando você precisa e some quando não precisa.
+![Barra compacta integrada ao Omarchy](docs/compact.png)
 
-![A ilha no painel](docs/compact.png)
+*Modo compacto em `y = 0` (26px), integrado diretamente à barra ao lado do `omarchy.indicators`.*
 
-![A ilha aberta](docs/expanded.png)
+![Painel Início aberto abaixo da barra](docs/expanded.png)
+
+*Painel aberto abaixo da barra (`y = 30px`) mantendo relógio, capa, clima e equalizador visíveis na barra.*
 
 </div>
 
 ---
 
-## ✨ Por que linux-island?
+## 🎨 Design e Arquitetura
 
-O topo da tela é o lugar mais valioso do seu desktop, e quase sempre está ocupado só por um relógio. O **linux-island** troca esse relógio por uma ilha viva:
+O `omarchy-island` foi construído para se comportar como parte nativa do `omarchy-shell` sem alterar nenhum arquivo empacotado em `/usr/share/omarchy/`.
 
-- **Discreta quando você está focado.** Uma pílula com hora, data, clima e o que está tocando.
-- **Completa quando você precisa.** Passe o mouse e ela se abre com previsão, controles de música, sua agenda e seus lembretes.
-- **Atenta a você.** Avisa de reuniões, notificações e da hora de beber água, sem sair de onde você está.
+```mermaid
+flowchart LR
+    A["Omarchy Bar (26px)"] -->|"centerBegin: indicators"| B["omarchy.spacer (auto-sync)"]
+    B -->|"centerEnd: system-update"| A
+    C["Island Pill (Overlay y=0, 26px)"] -.->|"ocupa o centro da barra"| B
+    C -->|"hover / clique"| D["Popup Window (Overlay y=30px)"]
+    E["Theme Hook / theme.generation"] -->|"colors.toml"| C
+    E -->|"colors.toml"| D
+    F["PipeWire (wpctl + pactl + cava opcional)"] <-->|"volume e áudio reativo"| D
+```
 
-Leve, bonita e feita para o Linux, sem Electron e sem navegador embutido.
+### Escolhas de UX/UI
+- **Duas janelas `gtk-layer-shell` independentes:** a pílula da barra (`y = 0`, 26px, sem borda) e o painel expandido (`y = 30px`, cantos arredondados) são superfícies separadas. Ao abrir o painel, a pílula continua visível na barra (assim como o `omarchy.clock` original).
+- **Espaçador dinâmico (`omarchy.spacer`):** sempre que a largura da pílula compacta muda (música tocando/parando, data ou clima ligados/desligados), a ilha ajusta automaticamente o tamanho de `omarchy.spacer` no `~/.config/omarchy/shell.json`, mantendo os ícones de `centerBegin` colados ao relógio.
+- **Barra de navegação fixa no topo:** abas (**Início**, **Mundo**, **Agenda**, **Água**), setas `<` / `>`, botão **Fixar aberta** (*Pin*) e atalho de **Configurações** ficam sempre no mesmo lugar no topo do painel, mesmo quando cada aba tem altura diferente.
+- **Não fecha ao clicar dentro:** clicar em áreas livres do painel não fecha a ilha acidentalmente; ela fecha ao tirar o mouse (com tolerância de 900 ms) ou ao clicar na pílula da barra / desafixar o Pin.
+- **Multi-monitor sincronizado:** cria uma instância ancorada em cada monitor conectado (`monitor-added` / `monitor-removed`), compartilhando player, volume, clima, agenda e hidratação.
+- **Tema vivo do Omarchy:** lê `background`, `foreground` e `accent` do `colors.toml` do tema ativo e atualiza ao vivo via `Gio.FileMonitor` em `theme.generation` + hook `theme-set.d`.
 
 ---
 
-## 🎵 Sua música, sempre à vista
+## ✨ Funcionalidades
 
-Spotify, YouTube no navegador, VLC, mpv, Rhythmbox… **o que estiver tocando aparece na ilha**, com capa, título e um equalizador na cor do álbum.
+### 1. Início: Relógio, Clima e Player de Mídia
+- **Relógio e data:** formato 24h ou 12h, data por extenso e suporte completo a **Português, English e Español** (`i18n`).
+- **Clima e previsão de 5 dias:** temperatura atual, sensação térmica, mínima/máxima e chance de chuva via [Open-Meteo](https://open-meteo.com/), com detecção automática por IP ([ipwho.is](https://ipwho.is/)) ou cidade manual.
+- **Mídia (MPRIS):** funciona com Spotify, YouTube Music / YouTube no navegador (Chrome, Firefox, Brave…), VLC, mpv, Rhythmbox, entre outros.
+  - **Troca de faixa em navegadores:** detecta atualizações tardias de `mpris:artUrl` para não ficar preso no ícone genérico do navegador.
+  - **Volume real via PipeWire (`wpctl`) + sync (`pactl subscribe`):** como navegadores expõem o volume MPRIS como somente leitura, a rolagem do mouse, o slider e o botão de mudo controlam o sink padrão do sistema (`@DEFAULT_AUDIO_SINK@`) e refletem alterações externas (teclas de volume, `omarchy.audio`) instantaneamente.
+  - **Spotify Web API (opcional):** exibe também a playlist ativa e o dispositivo remoto (celular, caixa de som, TV).
+- **Equalizador configurável:**
+  - **Estilos:** *Barras* (4 barras clássicas), *Simétrico* (5 barras espelhadas estilo Dynamic Island), *Onda* (curva contínua), *Pontos* (3 pontos pulsantes) ou *Desativado*.
+  - **Cores:** *Cor do tema* (padrão), *Cor da capa do álbum*, *Cor da fonte* ou *Personalizada*.
+  - **Reativo ao áudio real (CAVA opcional):** quando o `cava` está instalado, um único processo compartilhado lê as frequências reais do PipeWire enquanto há música tocando. Se não estiver instalado, usa animação suave sem dependências extras.
 
-- **Troca de música?** A pílula se estica por alguns segundos mostrando a faixa nova e depois volta ao relógio.
-- **Abriu outro player?** Se ele começou a tocar, a ilha passa para ele sozinha.
-- **Controles completos** na ilha aberta: voltar, play/pause, avançar, barra de progresso e volume.
-- **Volume na rodinha do mouse**: role sobre a ilha para subir ou baixar.
-- **No Spotify**, a ilha ainda mostra **qual playlist** está tocando e **em qual aparelho** (celular, caixa de som, TV…).
+### 2. Horário Mundial (`Mundo`)
 
-## ⛅ Hora, data e clima
+![Página de Horário Mundial](docs/world.png)
 
-- Relógio em 24h ou 12h, com a data por extenso.
-- **Clima agora** e **previsão de 5 dias**, com chance de chuva, para a sua cidade.
-- A cidade é detectada sozinha, ou você escolhe.
+- Lista cidades e fusos horários configuráveis (`Nome|Continente/Cidade`, ex.: `Maceió|America/Maceio, London|Europe/London, Los Angeles|America/Los_Angeles`).
+- Mostra hora atual, dia relativo (*Hoje*, *Amanhã*, *Ontem*) e diferença de fuso (`local`, `+3h`, `-5h`) respeitando o idioma da ilha.
+- **Exibição configurável:** *Na página inicial e em página própria*, *Só em página própria*, *Só na página inicial* ou *Desativado*.
 
-## 📅 Sua agenda no topo da tela
+### 3. Calendário Local, iCal (`.ics`) e Google Agenda (`Agenda`)
 
-![Agenda](docs/agenda.png)
+![Página de Calendário e Agenda](docs/agenda.png)
 
-Conecte sua conta do **Google**, pessoal ou corporativa, e veja o seu dia sem abrir nada:
-
-- **Antes de cada reunião**, a pílula avisa com contagem regressiva e um som discreto:
+- **Calendário local sem precisar de conta:** grade mensal fixa (6×7) com **números de semana ISO**, navegação entre meses, botão *Hoje*, barra de **progresso do ano** e **progresso da vida** (com as mesmas preferências do `omarchy.clock`: início da semana, ano de nascimento e expectativa de vida).
+- **Link iCal (`.ics`) sem Google Cloud:** cole a URL secreta iCal do Google Agenda, Outlook, iCloud ou Nextcloud nas Configurações — validada (`https://` / `webcal://`) e guardada no chaveiro do sistema (`libsecret`), 100% somente leitura.
+- **Google Agenda (OAuth opcional):** suporte mantido para credenciais desktop em `~/.config/linux-island/google_client_secret.json`.
+- **Avisos de reunião:** contagem regressiva na pílula compacta com alerta sonoro e botão **Entrar** para links do Google Meet, Zoom ou Teams.
 
   ![Aviso de reunião](docs/meeting.png)
 
-- **Um clique em "Entrar"** e você está na chamada do Google Meet.
-- Seus compromissos de **hoje**, **amanhã** e dos próximos dias, organizados.
-- Reuniões que você recusou não aparecem.
+### 4. Hidratação (`Água`) e Notificações
 
-## 💧 Lembrete de beber água
+![Página de Hidratação](docs/water.png)
 
-![Água](docs/water.png)
+- **Hidratação:** meta diária em ml, tamanho do copo, intervalo, janela de horário, soneca, som configurável e reset automático à meia-noite.
+- **Notificações:** desativadas por padrão no Omarchy para não duplicar o `omarchy-notifications`; quando ativadas nas Configurações, exibem notificações na pílula com fila, *Não perturbe*, modo privado (oculta o texto) e lista de apps ignorados.
 
-Defina sua meta e a ilha cuida do resto: lembra na hora certa, com um aviso sonoro e um brilho azul na pílula, e você registra cada copo com um clique. O dia zera sozinho à meia-noite.
+  ![Notificação na pílula](docs/notification.png)
 
-## 🔔 Notificações, do jeito da ilha
+### 5. Configurações ao vivo
 
-![Notificação](docs/notification.png)
+![Janela de Configurações](docs/settings.png)
 
-Quando um app manda uma notificação, a pílula se estica mostrando **quem notificou e o que disse**. Várias de uma vez? Elas entram em fila. Clique e o app abre.
-
-Tem **não perturbe**, opção de **esconder o texto** em apresentações e uma lista de **apps ignorados**.
-
-## 🎨 Do seu jeito
-
-- **Temas prontos**: Clássico, Vidro, Claro, Spotify e Grafite. Ou monte o seu, com cores, transparência e cantos.
-- **Em português, inglês ou espanhol**, seguindo o idioma do sistema ou o que você escolher.
-- Tudo se ajusta numa tela de configurações com o mesmo visual da ilha, e as mudanças aparecem na hora.
+Todas as opções aplicam e salvam automaticamente ao vivo (com confirmação imediata ao fechar a janela). Inclui botão **Instalar cava** direto na aba **Aparência → Equalizador** para instalar a dependência opcional via `pkexec`.
 
 ---
 
-## 🖱️ Gestos
+## 🖱️ Gestos e Controles
 
-| Você faz | A ilha faz |
+| Ação | Resultado |
 |---|---|
-| Passa o mouse | se abre |
-| Clica numa área livre | abre ou fecha |
-| Arrasta para o lado (com ela aberta) | troca de página: música e clima ↔ água ↔ agenda |
-| Rola a rodinha | muda o volume da música |
-| Clica com o botão do meio | play / pause |
-| Clica numa notificação | abre o app que notificou |
-| Clica com o botão direito | abre o menu: Configurações, abrir o player, Sair |
-
-## 🔒 Privacidade
-
-- **Seus dados ficam com você.** O contador de água, as notificações e as configurações nunca saem do seu computador.
-- **Agenda e Spotify são somente leitura.** As chaves de acesso ficam no **chaveiro protegido do sistema**, e "Sair da conta" remove o acesso na hora.
-- Para o **clima**, a ilha consulta o [Open-Meteo](https://open-meteo.com/) e, se você não escolher uma cidade, descobre a sua pelo IP via [ipwho.is](https://ipwho.is/).
-
-## 🐧 Onde funciona
-
-| Ambiente | |
-|---|---|
-| **Omarchy / Hyprland** (Arch Linux) | ✅ adaptado (barra de 26px, sync de tema e autostart) |
-| **COSMIC** (Pop!_OS 24.04) | ✅ testado (upstream); ocupa o lugar do relógio do painel |
-| **Sway, river, niri, Wayfire** | 🟡 deve funcionar |
-| **KDE Plasma** (Wayland) | 🟡 deve funcionar |
-| **GNOME** | ❌ ainda não |
-| **X11** | ❌ não |
-
-## 📄 Licença
-
-[MIT](LICENSE): use, modifique e compartilhe à vontade. Baseado no trabalho original de Murilo Azarias (`mrlazarias/linux-island`).
+| Passar o mouse na pílula da barra | abre o painel abaixo da barra |
+| Clicar na pílula da barra | alterna abrir / fechar |
+| Clicar em **Fixar aberta** (Pin) | mantém o painel aberto mesmo tirando o mouse |
+| Clicar nas abas / `<` `>` / arrastar | troca entre *Início*, *Mundo*, *Agenda* e *Água* |
+| Rolar a rodinha do mouse | ajusta o volume (MPRIS ou PipeWire) |
+| Clique do meio | play / pause |
+| Botão direito | menu: Configurações, abrir player, Sair |
 
 ---
 
-## 🚀 Como usar no Omarchy
-
-### 1. Instale as dependências (Arch Linux) e clone
+## 🚀 Instalação no Omarchy (Arch Linux)
 
 ```bash
 sudo pacman -S python-gobject gtk3 gtk-layer-shell python-cairo
@@ -127,10 +117,12 @@ cd ~/projects/omarchy-island
 ./run.sh &
 ```
 
-O script `./install-omarchy.sh`:
-- Instala o hook de troca de tema via `omarchy hook install theme-set`.
-- Faz backup e limpa o centro do `~/.config/omarchy/shell.json` (movendo `indicators`, `elsewhen` e `system-update` para `right` e removendo `omarchy.clock` e `omarchy.weather`).
-- Faz backup e adiciona o autostart no `~/.config/hypr/autostart.lua`.
+*(Opcional: para equalizador reativo ao áudio real, clique em **Instalar cava** em Configurações → Aparência → Equalizador, ou rode `sudo pacman -S cava`.)*
+
+### O que o `./install-omarchy.sh` faz
+1. Instala o hook `theme-set` via `omarchy hook install theme-set`.
+2. Faz backup e ajusta o `~/.config/omarchy/shell.json` (mantém `omarchy.indicators` em `centerBegin`, adiciona `omarchy.spacer` em `center` e remove `omarchy.clock`, `omarchy.weather` e `omarchy.elsewhen`).
+3. Faz backup e adiciona o autostart no `~/.config/hypr/autostart.lua`.
 
 ### Instalação manual (Ubuntu, Pop!_OS ou Debian)
 
@@ -141,74 +133,33 @@ cd omarchy-island
 ./run.sh
 ```
 
-<details>
-<summary>Sem permissão de administrador (sudo)?</summary>
+---
 
-O `run.sh` usa sozinho uma cópia local do gtk-layer-shell em `vendor/`, se ela existir:
-
-```bash
-mkdir -p vendor/debs && cd vendor/debs
-apt-get download gir1.2-gtklayershell-0.1 libgtk-layer-shell0
-for f in *.deb; do dpkg-deb -x "$f" ../root; done
-```
-
-</details>
-
-### 2. Abra as configurações
-
-Clique com o **botão direito** na ilha e escolha **Configurações…**, ou rode `./run.sh --settings`.
+## ⚙️ Abas de Configurações e CLI
 
 | Aba | O que você ajusta |
 |---|---|
-| **Aparência** | temas, cores, transparência, cantos e borda |
-| **Relógio e clima** | 12h/24h, data e clima na pílula, cidade, °C ou °F |
-| **Comportamento** | abrir ao passar o mouse, mostrar a música nova, volume pela rodinha, players ignorados, posição, idioma, iniciar com a sessão |
-| **Notificações** | mostrar na pílula, não perturbe, duração, esconder o texto, apps ignorados |
+| **Aparência** | temas prontos, **Seguir tema do Omarchy**, cores, cantos, borda, **Equalizador** (estilo, cor, reativo ao áudio e instalador do `cava`) |
+| **Relógio e clima** | 12h/24h, data na pílula, **Horário mundial** (exibição e cidades/fusos), cidade do clima e °C / °F |
+| **Comportamento** | hover, mostrar faixa nova, volume pela rodinha, players ignorados, distância do topo, **Ajustar espaçador da barra**, idioma e autostart |
+| **Notificações** | ativar/desativar na pílula, não perturbe, duração, esconder texto, apps ignorados |
 | **Água** | meta, tamanho do copo, intervalo, horário, adiar, som e notificação |
-| **Agenda** | entrar com Google, dias à frente, quanto antes avisar, som |
-| **Spotify** | conectar a conta para ver playlist e aparelho |
+| **Agenda** | **Calendário local** (início da semana, ano de nascimento, expectativa de vida), **Link iCal (.ics)**, Conta Google OAuth, dias à frente e avisos |
+| **Spotify** | conectar conta para ver playlist e dispositivo |
 
-### 3. Coloque a ilha no lugar do relógio (COSMIC)
+### Comandos CLI
 
-A ilha fica por cima do painel. Para tirar o relógio original de baixo dela, remova o applet de hora do centro do painel nas configurações de applets do COSMIC, ou pelo terminal:
+- `./run.sh --settings` (`-s`): abre a janela de configurações.
+- `./run.sh --page <home|world|agenda|water>`: abre e fixa diretamente uma página (útil para atalhos no Hyprland).
+- `./run.sh --reload-theme`: sincroniza o tema do Omarchy imediatamente.
+- `./run.sh --restart` (`-r`): reinicia a ilha (útil após trocar o idioma).
+- `./run.sh --city "Cidade"` / `./run.sh --margin PX`: overrides temporários para a execução atual.
 
-```bash
-P=~/.config/cosmic/com.system76.CosmicPanel.Panel/v1
-cp $P/plugins_center $P/plugins_center.backup   # para voltar depois
-printf 'Some([])' > $P/plugins_center
-```
+---
 
-Em outros ambientes, esconda o relógio da sua barra (Waybar, painel do Plasma…) ou ajuste a posição em *Comportamento → Distância do topo*.
+## 🔒 Privacidade e Licença
 
-### 4. Abra junto com o computador
-
-Ligue *Configurações → Comportamento → Iniciar com a sessão*.
-
-### 5. Conecte sua agenda
-
-Em *Configurações → Agenda*, clique em **Entrar com Google** e autorize no navegador.
-
-<details>
-<summary>Para quem distribui o linux-island: as credenciais do app do Google</summary>
-
-O login usa um app OAuth do tipo **App para computador**. A ilha procura as credenciais em `~/.config/linux-island/google_client_secret.json` (um app próprio) e depois em `google_client.json`, na pasta do projeto (o app oficial).
-
-1. No [Google Cloud Console](https://console.cloud.google.com/), crie um projeto e ative a **Google Calendar API**.
-2. Em **Tela de consentimento OAuth**, escolha **Externo**, adicione o escopo `calendar.readonly` e **publique o app**. Em modo de teste, só usuários cadastrados entram, e o login expira a cada 7 dias.
-3. Em **Credenciais → ID do cliente OAuth → App para computador**, baixe o JSON.
-
-Até a verificação do Google, quem entrar vê o aviso "O Google não verificou este app", e o limite é de 100 usuários.
-
-</details>
-
-### 6. Veja playlist e aparelho do Spotify (opcional)
-
-1. Em [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard), crie um app. A conta precisa ser Premium.
-2. Em **Redirect URIs**, adicione `http://127.0.0.1:8974/callback` e marque **Web API**.
-3. Copie o **Client ID**, cole em *Configurações → Spotify* e clique em **Conectar**.
-
-### Dicas
-
-- `./run.sh --city "Belo Horizonte"` usa outra cidade só nesta vez.
-- `./run.sh --margin 2` muda a distância do topo só nesta vez.
-- Rodar `./run.sh` de novo com a ilha aberta não cria uma segunda ilha.
+- **Tudo local:** hidratação, calendário local e configurações ficam apenas em `~/.config/linux-island/` e `~/.local/state/linux-island/`.
+- **Segredos protegidos:** URL `.ics`, tokens do Google e do Spotify são gravados no **chaveiro do sistema** (`libsecret`, fallback `0600`), nunca em texto plano no `config.json`.
+- **Somente leitura:** integrações de agenda (iCal / Google) e Spotify não alteram dados na sua conta.
+- **Licença:** [MIT](LICENSE) — baseado no trabalho original de Murilo Azarias (`mrlazarias/linux-island`).
