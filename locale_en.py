@@ -141,6 +141,7 @@ EN = {
     "linux-island — Configurações": "linux-island — Settings",
     "Configurações": "Settings",
     "Aplicar": "Apply",
+    "Aplicado ✓": "Applied ✓",
     "Ajustar espaçador da barra": "Sync bar spacer",
     "Sincroniza o espaço central do Omarchy com a largura da ilha":
         "Syncs Omarchy's center bar spacer with the island width",

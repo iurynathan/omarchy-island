@@ -143,6 +143,7 @@ ES = {
     "linux-island — Configurações": "linux-island — Ajustes",
     "Configurações": "Ajustes",
     "Aplicar": "Aplicar",
+    "Aplicado ✓": "Aplicado ✓",
     "Ajustar espaçador da barra": "Ajustar espaciador de la barra",
     "Sincroniza o espaço central do Omarchy com a largura da ilha":
         "Sincroniza el espacio central de Omarchy con el ancho de la isla",
