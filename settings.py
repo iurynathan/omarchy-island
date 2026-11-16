@@ -382,6 +382,7 @@ class Settings(SettingsPagesMixin, Gtk.Window):
                 ("mirror", "Simétrico"),
                 ("wave", "Onda"),
                 ("dots", "Pontos"),
+                ("off", "Desativado"),
             ]))
         self._row(eq, "Cor do equalizador", self._choice(
             "eq_color_mode",

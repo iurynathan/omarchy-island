@@ -132,8 +132,13 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
                                   "text_color"):
             self._apply_accent()
         if key is None or key == "eq_style":
+            style = cfg["eq_style"]
             for eq in (self.compact.eq, self.full.eq):
-                eq.set_style(cfg["eq_style"])
+                eq.set_style(style)
+            off = style == "off"
+            self.full.eq.set_visible(not off)
+            self.full.eq.set_no_show_all(off)
+            self.compact.set_music(self.player.track is not None, self.player.playing)
         if key is None or key in ("clock_24h", "world_clock_mode", "world_cities"):
             self._minute = None
             self._tick_clock()

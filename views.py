@@ -181,7 +181,7 @@ class Compact(Gtk.Box):
 
     def set_music(self, has_track, playing):
         self.art_rev.set_reveal_child(has_track)
-        self.eq_rev.set_reveal_child(has_track and playing)
+        self.eq_rev.set_reveal_child(has_track and playing and self.eq.style != "off")
         self.eq.set_playing(playing)
 
 

@@ -80,18 +80,25 @@ class Equalizer(Gtk.DrawingArea):
     def set_style(self, style):
         if style != self.style:
             self.style = style
+            if style == "off" and self._tick is not None:
+                self.remove_tick_callback(self._tick)
+                self._tick = None
+            elif style != "off" and self.playing and self._tick is None:
+                self._tick = self.add_tick_callback(lambda *_a: self.queue_draw() or True)
             self.queue_draw()
 
     def set_playing(self, playing):
         self.playing = playing
-        if playing and self._tick is None:
+        if playing and self.style != "off" and self._tick is None:
             self._tick = self.add_tick_callback(lambda *_a: self.queue_draw() or True)
-        elif not playing and self._tick is not None:
+        elif (not playing or self.style == "off") and self._tick is not None:
             self.remove_tick_callback(self._tick)
             self._tick = None
         self.queue_draw()
 
     def _draw(self, _w, cr):
+        if self.style == "off":
+            return
         t = time.monotonic()
         cr.set_source_rgb(*self.accent)
         style = self.style
