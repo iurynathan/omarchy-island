@@ -121,7 +121,7 @@ class AgendaPage(Gtk.Box):
             row = Gtk.Box(spacing=10)
             lb = label("dim small")
             lb.set_line_wrap(True)
-            lb.set_text(_("Conecte o Google para ver seus eventos aqui (opcional)."))
+            lb.set_text(_("Conecte o Google ou um link iCal (.ics) para ver seus eventos."))
             row.pack_start(lb, True, True, 0)
             row.pack_end(pill_button(_("Conectar"), None, self.open_settings, "water-snooze"),
                          False, False, 0)

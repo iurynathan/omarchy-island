@@ -23,8 +23,15 @@ ES = {
     "Eventos": "Eventos",
     "Próximos eventos": "Próximos eventos",
     "Nada na agenda neste dia.": "Nada en la agenda en este día.",
-    "Conecte o Google para ver seus eventos aqui (opcional).":
-        "Conecta Google para ver tus eventos aquí (opcional).",
+    "Conecte o Google ou um link iCal (.ics) para ver seus eventos.":
+        "Conecta Google o un enlace iCal (.ics) para ver tus eventos.",
+    "Link iCal (.ics)": "Enlace iCal (.ics)",
+    "URL secreta": "URL secreta",
+    "Guardada no chaveiro do sistema (Google, Outlook, iCloud…)":
+        "Guardada en el llavero del sistema (Google, Outlook, iCloud…)",
+    "Status iCal": "Estado iCal",
+    "Conectado (salvo no chaveiro)": "Conectado (guardado en el llavero)",
+    "Remover": "Eliminar",
     "Calendário local": "Calendario local",
     "Início da semana": "Inicio de la semana",
     "Domingo": "Domingo",

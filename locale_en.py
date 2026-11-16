@@ -23,8 +23,15 @@ EN = {
     "Eventos": "Events",
     "Próximos eventos": "Upcoming events",
     "Nada na agenda neste dia.": "Nothing on your calendar on this day.",
-    "Conecte o Google para ver seus eventos aqui (opcional).":
-        "Connect Google to see your events here (optional).",
+    "Conecte o Google ou um link iCal (.ics) para ver seus eventos.":
+        "Connect Google or an iCal (.ics) link to see your events.",
+    "Link iCal (.ics)": "iCal link (.ics)",
+    "URL secreta": "Secret URL",
+    "Guardada no chaveiro do sistema (Google, Outlook, iCloud…)":
+        "Stored in the system keyring (Google, Outlook, iCloud…)",
+    "Status iCal": "iCal status",
+    "Conectado (salvo no chaveiro)": "Connected (saved in keyring)",
+    "Remover": "Remove",
     "Calendário local": "Local calendar",
     "Início da semana": "Start of week",
     "Domingo": "Sunday",

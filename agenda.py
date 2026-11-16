@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from gi.repository import GLib
 
 from google_calendar import AuthError, GoogleCalendar, MissingAppError
+from ical_calendar import IcalCalendar
 from i18n import _, weekday
 
 POLL_S = 5 * 60
@@ -130,21 +131,22 @@ class Agenda:
         self.on_status = on_status
         self.play_sound = play_sound
         self.google = GoogleCalendar()
+        self.ical = IcalCalendar()
         self.events = []
         self.alert = None
         self._dismissed = set()
         self._sounded = set()
         self._busy = False
         self._poll_id = None
-        self.status = ((_("Conectado"), True) if self.google.connected
+        self.status = ((_("Conectado"), True) if self.connected
                        else (_("Não conectado"), False))
         GLib.timeout_add_seconds(TICK_S, lambda: self.tick() or True)
-        if self.google.connected:
+        if self.connected:
             self._start_polling()
 
     @property
     def connected(self):
-        return self.google.connected
+        return self.google.connected or self.ical.connected
 
     def _set_status(self, text, ok):
         self.status = (text, ok)
@@ -170,9 +172,24 @@ class Agenda:
 
     def disconnect(self):
         self.google.disconnect()
+        self.ical.disconnect()
         self._stop_polling()
         self.events = []
         self._set_status(_("Desconectado"), False)
+        self.on_change()
+        self.tick()
+
+    def connect_ical(self, url):
+        self.ical.set_url(url)
+        self._set_status(_("Conectado"), True)
+        self._start_polling()
+
+    def disconnect_ical(self):
+        self.ical.disconnect()
+        if not self.google.connected:
+            self._stop_polling()
+            self.events = []
+            self._set_status(_("Desconectado"), False)
         self.on_change()
         self.tick()
 
@@ -188,17 +205,21 @@ class Agenda:
             self._poll_id = None
 
     def refresh(self):
-        if self._busy or not self.google.connected or not self.cfg["agenda_enabled"]:
+        if self._busy or not self.connected or not self.cfg["agenda_enabled"]:
             return
         self._busy = True
         now = datetime.now().astimezone()
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(days=self.cfg["agenda_days"])
+        use_google = self.google.connected
 
         def work():
             items, err = None, None
             try:
-                items = self.google.fetch_events(start, end)
+                if use_google:
+                    items = self.google.fetch_events(start, end)
+                else:
+                    items = self.ical.fetch_events(start, end)
             except MissingAppError as e:
                 err = ("noapp", str(e))
             except AuthError as e:

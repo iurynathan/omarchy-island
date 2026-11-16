@@ -78,7 +78,23 @@ class SettingsPagesMixin:
         intro.get_style_context().add_class("dim-label")
         page.pack_start(intro, False, False, 0)
 
-        account = self._group(page, "Conta Google")
+        account = self._group(page, "Link iCal (.ics)")
+        ical_entry = Gtk.Entry(placeholder_text="https://…/basic.ics")
+        ical_entry.set_width_chars(24)
+        ical_entry.set_visibility(False)
+        self.ical_entry = ical_entry
+        self.ical_btn = Gtk.Button()
+        self.ical_status = Gtk.Label(xalign=0)
+        self.ical_btn.connect("clicked", self._on_ical_clicked)
+        ical_box = Gtk.Box(spacing=8)
+        ical_box.pack_start(ical_entry, True, True, 0)
+        ical_box.pack_start(self.ical_btn, False, False, 0)
+        self._row(account, "URL secreta", ical_box,
+                  "Guardada no chaveiro do sistema (Google, Outlook, iCloud…)")
+        self._row(account, "Status iCal", self.ical_status)
+        self._refresh_ical_ui()
+
+        gaccount = self._group(page, "Conta Google")
         has_app = find_client_secret() is not None
         if not has_app:
             warn = Gtk.Label(xalign=0, wrap=True)
@@ -89,13 +105,13 @@ class SettingsPagesMixin:
             for side in ("top", "bottom", "start", "end"):
                 getattr(box, f"set_margin_{side}")(10 if side in ("top", "bottom") else 12)
             box.pack_start(warn, True, True, 0)
-            account.add(box)
+            gaccount.add(box)
         self.ag_status = Gtk.Label(xalign=0)
         self.ag_button = Gtk.Button()
         self.ag_button.set_sensitive(has_app)
         self.ag_button.connect("clicked", lambda *_a: (
-            self.agenda.disconnect() if self.agenda.connected else self.agenda.login()))
-        self._row(account, "Status", self.ag_button).get_children()[0].pack_start(
+            self.agenda.disconnect() if self.agenda.google.connected else self.agenda.login()))
+        self._row(gaccount, "Status", self.ag_button).get_children()[0].pack_start(
             self.ag_status, False, False, 0)
 
         show = self._group(page, "Exibição")
@@ -117,6 +133,40 @@ class SettingsPagesMixin:
         self._row(alert, "Volume (%)", vol)
         return scroll
 
+    def _refresh_ical_ui(self, err=None):
+        if not hasattr(self, "ical_status"):
+            return
+        active = self.agenda.ical.connected
+        if err:
+            self.ical_status.set_text(err)
+            self.ical_status.get_style_context().remove_class("ok")
+            self.ical_status.get_style_context().add_class("dim-label")
+        elif active:
+            self.ical_status.set_text(_("Conectado (salvo no chaveiro)"))
+            self.ical_status.get_style_context().add_class("ok")
+            self.ical_status.get_style_context().remove_class("dim-label")
+        else:
+            self.ical_status.set_text(_("Não conectado"))
+            self.ical_status.get_style_context().remove_class("ok")
+            self.ical_status.get_style_context().add_class("dim-label")
+        self.ical_entry.set_sensitive(not active)
+        if active:
+            self.ical_entry.set_text("")
+        self.ical_btn.set_label(_("Remover") if active else _("Conectar"))
+        bctx = self.ical_btn.get_style_context()
+        (bctx.remove_class if active else bctx.add_class)("suggested")
+
+    def _on_ical_clicked(self, *_):
+        if self.agenda.ical.connected:
+            self.agenda.disconnect_ical()
+            self._refresh_ical_ui()
+            return
+        try:
+            self.agenda.connect_ical(self.ical_entry.get_text())
+            self._refresh_ical_ui()
+        except ValueError as e:
+            self._refresh_ical_ui(err=str(e))
+
     def set_agenda_status(self, text, ok):
         if not hasattr(self, "ag_status"):
             return
@@ -124,7 +174,7 @@ class SettingsPagesMixin:
         ctx = self.ag_status.get_style_context()
         (ctx.add_class if ok else ctx.remove_class)("ok")
         (ctx.remove_class if ok else ctx.add_class)("dim-label")
-        connected = self.agenda.connected
+        connected = self.agenda.google.connected
         self.ag_button.set_label(_("Sair da conta") if connected else _("Entrar com Google"))
         bctx = self.ag_button.get_style_context()
         (bctx.remove_class if connected else bctx.add_class)("suggested")
