@@ -66,10 +66,9 @@ class InputMixin:
                             lambda: self._pointer_inside() and self.set_expanded(True))
         else:
             self._cancel("expand")
-            if self.expanded and not getattr(self, "pinned", False):
+            if self.expanded and self.cfg["hover_expand"]:
                 self._later("collapse", COLLAPSE_DELAY_MS,
-                            lambda: self._pointer_inside() or self.pinned
-                            or self.set_expanded(False))
+                            lambda: self._pointer_inside() or self.set_expanded(False))
 
     def _drop_stale_press(self, ev):
         """Se a soltura do botão se perdeu, não deixa a ilha presa aberta."""

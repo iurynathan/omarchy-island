@@ -518,6 +518,8 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         hover = self._group(page, "Expansão")
         self._row(hover, "Expandir ao passar o mouse", self._switch("hover_expand"),
                   "Desligado: só abre com clique")
+        self._row(hover, "Fechar ao clicar fora", self._switch("click_outside_close"),
+                  "Fecha o painel ao clicar fora dele")
         self._row(hover, "Atraso do hover (ms)", self._spin("hover_delay_ms", 0, 2000, 20))
         self._row(hover, "Mostrar a música nova na pílula", self._switch("peek_on_track"),
                   "Na troca de faixa a pílula se estica com título e artista por 4 s")
@@ -530,6 +532,13 @@ class Settings(SettingsPagesMixin, Gtk.Window):
                   "Nomes separados por vírgula — por exemplo, para não mostrar vídeos do navegador")
 
         bar_media = self._group(page, "Mídia na barra")
+        self._row(bar_media, "Capa na barra", self._choice(
+            "bar_art_pos",
+            [
+                ("left", "Esquerda"),
+                ("right", "Direita"),
+                ("off", "Oculto"),
+            ]))
         self._row(bar_media, "Texto na barra", self._choice(
             "bar_track_mode",
             [

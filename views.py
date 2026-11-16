@@ -113,6 +113,7 @@ class Compact(Gtk.Box):
 
         self._has_track = False
         self._playing = False
+        self._bar_art_pos = "left"
         self._bar_track_mode = "off"
         self._bar_controls_pos = "off"
 
@@ -187,19 +188,22 @@ class Compact(Gtk.Box):
         return btn, img
 
     def set_bar_media(self, cfg, track):
+        art_pos = cfg["bar_art_pos"]
         mode = cfg["bar_track_mode"]
         t_pos = cfg["bar_track_pos"]
         c_pos = cfg["bar_controls_pos"]
+        self._bar_art_pos = art_pos
         self._bar_track_mode = mode
         self._bar_controls_pos = c_pos
 
-        # Reordena os slots: before_art -> art_rev -> after_art -> middle -> right -> eq_rev
+        # Reordena os slots: before_art -> art(left) -> after_art -> middle -> right -> art(right) -> eq_rev
         order = []
         if c_pos == "left_before_art":
             order.append(self.ctrl_rev)
         if t_pos == "before_art":
             order.append(self.bar_track_rev)
-        order.append(self.art_rev)
+        if art_pos == "left":
+            order.append(self.art_rev)
         if c_pos == "left_after_art":
             order.append(self.ctrl_rev)
         if t_pos == "after_art":
@@ -209,10 +213,11 @@ class Compact(Gtk.Box):
             order.append(self.bar_track_rev)
         if c_pos == "right":
             order.append(self.ctrl_rev)
-        if self.ctrl_rev not in order:
-            order.append(self.ctrl_rev)
-        if self.bar_track_rev not in order:
-            order.append(self.bar_track_rev)
+        if art_pos == "right":
+            order.append(self.art_rev)
+        for w in (self.ctrl_rev, self.bar_track_rev, self.art_rev):
+            if w not in order:
+                order.append(w)
         order.append(self.eq_rev)
         for idx, w in enumerate(order):
             self.reorder_child(w, idx)
@@ -226,6 +231,7 @@ class Compact(Gtk.Box):
             else:
                 text = clip(f"{track.title} · {track.artist}" if track.artist else track.title, 34)
         self.bar_track_lb.set_text(text)
+        self.art_rev.set_reveal_child(self._has_track and art_pos != "off")
         self.bar_track_rev.set_reveal_child(bool(text))
         self.ctrl_rev.set_reveal_child(self._has_track and c_pos != "off")
 
@@ -264,7 +270,7 @@ class Compact(Gtk.Box):
     def set_music(self, has_track, playing):
         self._has_track = has_track
         self._playing = playing
-        self.art_rev.set_reveal_child(has_track)
+        self.art_rev.set_reveal_child(has_track and self._bar_art_pos != "off")
         self.eq_rev.set_reveal_child(has_track and self.eq.style != "off")
         self.ctrl_rev.set_reveal_child(has_track and self._bar_controls_pos != "off")
         self.bar_track_rev.set_reveal_child(

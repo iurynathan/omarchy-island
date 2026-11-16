@@ -219,6 +219,11 @@ ES = {
     # comportamiento
     "Expansão": "Expansión",
     "Expandir ao passar o mouse": "Expandir al pasar el ratón",
+    "Fechar ao clicar fora": "Cerrar al hacer clic fuera",
+    "Fecha o painel ao clicar fora dele": "Cierra el panel al hacer clic fuera de él",
+    "Capa na barra": "Portada en la barra",
+    "Esquerda": "Izquierda",
+    "Oculto": "Oculto",
     "Desligado: só abre com clique": "Apagado: solo se abre con clic",
     "Atraso do hover (ms)": "Retraso al pasar el ratón (ms)",
     "Mostrar a música nova na pílula": "Mostrar la canción nueva en la píldora",

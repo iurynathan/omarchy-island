@@ -83,6 +83,7 @@ SCHEMA = {
     "life_expectancy": (90, _int_range(1, 150)),
     # integração com o Omarchy
     "bar_spacer_sync": (True, _is_bool),
+    "bar_art_pos": ("left", _choice("left", "right", "off")),
     "bar_track_mode": ("off", _choice("off", "title", "artist", "both")),
     "bar_track_pos": ("after_art", _choice("before_art", "after_art", "right")),
     "bar_controls_pos": ("off", _choice("off", "left_before_art", "left_after_art", "right")),
@@ -133,6 +134,7 @@ SCHEMA = {
     "player_ignore": ("", lambda v: isinstance(v, str) and len(v) <= 300),
     # comportamento
     "hover_expand": (True, _is_bool),
+    "click_outside_close": (True, _is_bool),
     "peek_on_track": (True, _is_bool),
     "scroll_volume": (True, _is_bool),
     "hover_delay_ms": (120, _int_range(0, 2000)),

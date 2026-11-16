@@ -60,15 +60,6 @@ class PagesMixin:
             bar.pack_start(btn, False, False, 0)
             self.tabs[name] = (btn, rev)
 
-        self.pin_btn = Gtk.ToggleButton()
-        self.pin_btn.set_relief(Gtk.ReliefStyle.NONE)
-        self.pin_btn.set_can_focus(False)
-        self.pin_btn.add(icon("view-pin-symbolic", 13))
-        self.pin_btn.get_style_context().add_class("tab")
-        self.pin_btn.get_style_context().add_class("pin")
-        self.pin_btn.connect("toggled", self._on_pin_toggled)
-        self._on_pin_toggled(self.pin_btn)
-
         cfg_btn = Gtk.Button()
         cfg_btn.add(icon("emblem-system-symbolic", 13))
         cfg_btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -78,7 +69,6 @@ class PagesMixin:
         cfg_btn.connect("clicked", lambda *_a: self.app.open_settings())
 
         bar.pack_end(cfg_btn, False, False, 0)
-        bar.pack_end(self.pin_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
 
         self.pages = Gtk.Stack()
@@ -93,19 +83,6 @@ class PagesMixin:
         box.pack_start(self.pages, False, False, 0)
         self._mark_tab("home")
         return box
-
-    # --- fixar aberta -----------------------------------------------------
-    def _on_pin_toggled(self, btn):
-        self.pinned = btn.get_active()
-        btn.set_tooltip_text(_("Desafixar") if self.pinned else _("Fixar aberta"))
-        if self.pinned:
-            self._cancel("collapse")
-        else:
-            self._later("hover", 30, self._recheck_hover)
-
-    def set_pinned(self, value):
-        if self.pin_btn.get_active() != value:
-            self.pin_btn.set_active(value)
 
     def _sync_page_dots(self):
         active = set(self._active_pages())

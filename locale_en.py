@@ -217,6 +217,11 @@ EN = {
     # behavior
     "Expansão": "Expanding",
     "Expandir ao passar o mouse": "Expand on hover",
+    "Fechar ao clicar fora": "Close on click outside",
+    "Fecha o painel ao clicar fora dele": "Closes the panel when clicking outside it",
+    "Capa na barra": "Bar album art",
+    "Esquerda": "Left",
+    "Oculto": "Hidden",
     "Desligado: só abre com clique": "Off: opens only on click",
     "Atraso do hover (ms)": "Hover delay (ms)",
     "Mostrar a música nova na pílula": "Show the new song in the pill",

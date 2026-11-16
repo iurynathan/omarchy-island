@@ -147,7 +147,8 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._sync_page_dots()
         if key is None or key in ("show_date", "show_weather"):
             self.compact.set_visibility(cfg["show_date"], cfg["show_weather"])
-        if key is None or key in ("bar_track_mode", "bar_track_pos", "bar_controls_pos"):
+        if key is None or key in ("bar_art_pos", "bar_track_mode", "bar_track_pos",
+                                  "bar_controls_pos"):
             self.compact.set_bar_media(cfg, self.player.track)
         if key is None or (key or "").startswith("agenda_") or key in (
                 "week_start", "birth_year", "life_expectancy"):
@@ -212,6 +213,7 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.popup = Gtk.Window(title="linux-island-popup")
         self._setup_surface(self.popup, self.cfg["margin_top"] + Compact.HEIGHT + 4)
         self._hook_events(self.popup)
+        self.popup.connect("focus-out-event", self._on_popup_focus_out)
         self.popup_shell = Gtk.Box()
         self.popup_shell.get_style_context().add_class("island")
         self.popup_shell.get_style_context().add_class("expanded")
@@ -240,8 +242,15 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.compact.middle.add_named(self.notif_pill, "notif")
 
     # --- tamanho --------------------------------------------------------
+    def _sync_spacer_now(self):
+        if self.compact.get_realized():
+            w = max(self.compact.get_preferred_width()[1], self.get_allocated_width())
+            if w > 40:
+                self.app.schedule_spacer_sync(w)
+
     def _follow_size(self):
         """Janelas GTK3 não encolhem sozinhas: acompanha as animações de tamanho."""
+        self._sync_spacer_now()
         if self._resize_tick is not None:
             self.remove_tick_callback(self._resize_tick)
         start = GLib.get_monotonic_time()
@@ -260,12 +269,21 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
         self._resize_tick = self.add_tick_callback(step)
 
+    def _on_popup_focus_out(self, _w, _ev):
+        if self.expanded and self.cfg["click_outside_close"]:
+            GLib.timeout_add(50, self._close_if_outside)
+        return False
+
+    def _close_if_outside(self):
+        if self.expanded and self.cfg["click_outside_close"]:
+            if not self.popup.is_active() and not self._pointer_inside():
+                self.set_expanded(False)
+        return False
+
     def set_expanded(self, value):
         if value == self.expanded:
             return
         self.expanded = value
-        if not value and getattr(self, "pinned", False):
-            self.set_pinned(False)
         log("expanded", value)
         if value:  # ao expandir, a pílula volta ao relógio para quando fechar
             self._cancel("track_peek")
@@ -276,9 +294,17 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
                 self.set_page(self._alert_page())
             elif self.pages.get_visible_child_name() == "agenda":
                 self.agenda_page.update(self.cfg)
+            GtkLayerShell.set_keyboard_mode(
+                self.popup,
+                GtkLayerShell.KeyboardMode.ON_DEMAND if self.cfg["click_outside_close"]
+                else GtkLayerShell.KeyboardMode.NONE,
+            )
             self.popup.show_all()
+            if self.cfg["click_outside_close"]:
+                self.popup.present()
             self._sync_page_dots()
         else:
+            GtkLayerShell.set_keyboard_mode(self.popup, GtkLayerShell.KeyboardMode.NONE)
             self.popup.hide()
             self.set_page(self._alert_page())
         self._follow_size()
@@ -635,11 +661,11 @@ class App(Gtk.Application):
         if not self.cfg or not self.cfg["bar_spacer_sync"]:
             return
         target = max(80, int(compact_width) + 2)
-        if self._last_spacer_size is not None and abs(target - self._last_spacer_size) < 4:
+        if self._last_spacer_size is not None and abs(target - self._last_spacer_size) < 3:
             return
         if self._spacer_timer is not None:
             GLib.source_remove(self._spacer_timer)
-        self._spacer_timer = GLib.timeout_add(220, self._apply_spacer_size, target)
+        self._spacer_timer = GLib.timeout_add(35, self._apply_spacer_size, target)
 
     def _apply_spacer_size(self, target):
         self._spacer_timer = None
@@ -685,7 +711,6 @@ class App(Gtk.Application):
             pg = opts["page"]
             if pg in self.island._active_pages():
                 self.island.set_expanded(True)
-                self.island.set_pinned(True)
                 self.island.set_page(pg)
         if opts.get("settings"):
             self.open_settings()
