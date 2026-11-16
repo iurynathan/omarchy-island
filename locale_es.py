@@ -185,6 +185,18 @@ ES = {
     "Cor da fonte": "Color de la fuente",
     "Personalizada": "Personalizado",
     "Cor personalizada": "Color personalizado",
+    "Reativo ao áudio (CAVA)": "Reactivo al audio (CAVA)",
+    "Reage às batidas reais do áudio quando o cava está instalado":
+        "Reacciona al ritmo real del audio cuando cava está instalado",
+    "Motor de áudio (cava)": "Motor de audio (cava)",
+    "Dependência opcional para equalizador reativo em tempo real":
+        "Dependencia opcional para ecualizador reactivo en tiempo real",
+    "Instalado": "Instalado",
+    "Não instalado": "No instalado",
+    "Instalar cava": "Instalar cava",
+    "Instalado ✓": "Instalado ✓",
+    "Instalando…": "Instalando…",
+    "Falha: {erro}": "Error: {erro}",
     # reloj y clima
     "Relógio": "Reloj",
     "Formato 24 horas": "Formato de 24 horas",

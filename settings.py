@@ -397,7 +397,53 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         prev_eq = self._sync["eq_color_mode"]
         self._sync["eq_color_mode"] = lambda: (
             prev_eq(), eq_color_row.set_sensitive(self.cfg["eq_color_mode"] == "custom"))
+
+        from cava_audio import install_async, is_available
+
+        self._row(eq, "Reativo ao áudio (CAVA)", self._switch("eq_reactive"),
+                  "Reage às batidas reais do áudio quando o cava está instalado")
+        cava_box = Gtk.Box(spacing=8)
+        self.cava_status = Gtk.Label(xalign=0)
+        self.cava_btn = Gtk.Button()
+        self.cava_btn.connect("clicked", lambda *_a: self._install_cava(install_async, is_available))
+        cava_box.pack_start(self.cava_status, False, False, 0)
+        cava_box.pack_start(self.cava_btn, False, False, 0)
+        self._row(eq, "Motor de áudio (cava)", cava_box,
+                  "Dependência opcional para equalizador reativo em tempo real")
+        self._refresh_cava_ui(is_available())
         return scroll
+
+    def _refresh_cava_ui(self, available, err=None):
+        if err:
+            self.cava_status.set_text(_("Falha: {erro}").format(erro=err[:40]))
+            self.cava_status.get_style_context().remove_class("ok")
+            self.cava_status.get_style_context().add_class("dim-label")
+        elif available:
+            self.cava_status.set_text(_("Instalado"))
+            self.cava_status.get_style_context().add_class("ok")
+            self.cava_status.get_style_context().remove_class("dim-label")
+        else:
+            self.cava_status.set_text(_("Não instalado"))
+            self.cava_status.get_style_context().remove_class("ok")
+            self.cava_status.get_style_context().add_class("dim-label")
+        self.cava_btn.set_label(_("Instalado ✓") if available else _("Instalar cava"))
+        self.cava_btn.set_sensitive(not available)
+        ctx = self.cava_btn.get_style_context()
+        (ctx.remove_class if available else ctx.add_class)("suggested")
+
+    def _install_cava(self, install_async, is_available):
+        self.cava_btn.set_sensitive(False)
+        self.cava_btn.set_label(_("Instalando…"))
+
+        def done(ok, err):
+            self._refresh_cava_ui(is_available(), err=None if ok else err)
+            if ok:
+                app = self.get_application()
+                if app and hasattr(app, "apply_all"):
+                    app.apply_all()
+            return False
+
+        install_async(done)
 
     def _preset_button(self, name, bg, fg, auto, accent):
         area = Gtk.DrawingArea()

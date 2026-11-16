@@ -183,6 +183,18 @@ EN = {
     "Cor da fonte": "Font color",
     "Personalizada": "Custom",
     "Cor personalizada": "Custom color",
+    "Reativo ao áudio (CAVA)": "Audio-reactive (CAVA)",
+    "Reage às batidas reais do áudio quando o cava está instalado":
+        "Reacts to real audio beats when cava is installed",
+    "Motor de áudio (cava)": "Audio engine (cava)",
+    "Dependência opcional para equalizador reativo em tempo real":
+        "Optional dependency for real-time audio-reactive equalizer",
+    "Instalado": "Installed",
+    "Não instalado": "Not installed",
+    "Instalar cava": "Install cava",
+    "Instalado ✓": "Installed ✓",
+    "Instalando…": "Installing…",
+    "Falha: {erro}": "Failed: {erro}",
     # clock and weather
     "Relógio": "Clock",
     "Formato 24 horas": "24-hour format",

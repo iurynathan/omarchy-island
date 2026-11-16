@@ -41,6 +41,7 @@ from agenda_view import AgendaPage, MeetingPill  # noqa: E402
 from world_clock import WorldClockPage  # noqa: E402
 from weather import Weather  # noqa: E402
 from widgets import accent_from_pixbuf  # noqa: E402
+from cava_audio import CavaReader  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_ID = "io.github.mrlazarias.LinuxIsland"
@@ -438,6 +439,7 @@ class App(Gtk.Application):
         if not self.web.connected:
             self.web_status = (_("Não conectado"), False)
         self.notifications = NotificationWatcher(self._on_notification)
+        self.cava = CavaReader(self._on_cava_levels)
 
         cfg.connect(self._on_cfg_change)
         self._watch_omarchy_theme()
@@ -485,7 +487,25 @@ class App(Gtk.Application):
             self.agenda.tick()
         if (key or "").startswith("water_"):
             self.water.tick()
+        self._sync_cava()
         self._for_each(lambda isl: isl._apply(key))
+
+    def _sync_cava(self):
+        if not hasattr(self, "cava") or not self.cfg:
+            return
+        active = (
+            self.player.track is not None
+            and self.player.playing
+            and self.cfg["eq_reactive"]
+            and self.cfg["eq_style"] != "off"
+        )
+        self.cava.set_active(active)
+
+    def _on_cava_levels(self, levels):
+        def apply_lvl(isl):
+            isl.compact.eq.set_levels(levels)
+            isl.full.eq.set_levels(levels)
+        self._for_each(apply_lvl)
 
     def _watch_omarchy_theme(self):
         gen_path = os.path.join(GLib.get_user_state_dir(), "omarchy", "current", "theme.generation")
@@ -519,10 +539,12 @@ class App(Gtk.Application):
 
     def _on_track(self, track):
         self.web.kick()
+        self._sync_cava()
         self._for_each(lambda isl: isl._on_track(track))
 
     def _on_status(self, playing):
         self.web.kick()
+        self._sync_cava()
         self._for_each(lambda isl: isl._on_status(playing))
 
     def _on_player_switch(self, p):
@@ -658,6 +680,12 @@ class App(Gtk.Application):
         self.weather.configure(self.cfg["city"], self.cfg["units"])
         self.agenda.refresh()
         self.water.tick()
+        self._sync_cava()
+
+    def do_shutdown(self):
+        if hasattr(self, "cava"):
+            self.cava.stop()
+        Gtk.Application.do_shutdown(self)
 
     def restart(self):
         """Reabre a ilha (ex.: para trocar o idioma). O ambiente do run.sh é herdado."""

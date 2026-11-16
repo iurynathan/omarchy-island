@@ -68,6 +68,7 @@ SCHEMA = {
     "accent_auto": (True, _is_bool),          # cor de destaque tirada da capa
     "accent_color": ("rgb(30,215,96)", _is_color),
     "eq_style": ("bars", _choice("bars", "mirror", "wave", "dots", "off")),
+    "eq_reactive": (True, _is_bool),
     "eq_color_mode": ("theme", _choice("theme", "art", "text", "custom")),
     "eq_color": ("rgb(122,162,247)", _is_color),
     "border": (True, _is_bool),
