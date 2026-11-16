@@ -373,6 +373,29 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         self._row(shape, "Arredondamento expandida", self._spin("radius_expanded", 8, 48),
                   "Raio dos cantos, em px")
         self._row(shape, "Borda sutil", self._switch("border"))
+
+        eq = self._group(page, "Equalizador")
+        self._row(eq, "Estilo", self._choice(
+            "eq_style",
+            [
+                ("bars", "Barras"),
+                ("mirror", "Simétrico"),
+                ("wave", "Onda"),
+                ("dots", "Pontos"),
+            ]))
+        self._row(eq, "Cor do equalizador", self._choice(
+            "eq_color_mode",
+            [
+                ("theme", "Cor do tema"),
+                ("art", "Cor da capa"),
+                ("text", "Cor da fonte"),
+                ("custom", "Personalizada"),
+            ]))
+        eq_color_row = self._row(eq, "Cor personalizada", self._color("eq_color"))
+        eq_color_row.set_sensitive(self.cfg["eq_color_mode"] == "custom")
+        prev_eq = self._sync["eq_color_mode"]
+        self._sync["eq_color_mode"] = lambda: (
+            prev_eq(), eq_color_row.set_sensitive(self.cfg["eq_color_mode"] == "custom"))
         return scroll
 
     def _preset_button(self, name, bg, fg, auto, accent):

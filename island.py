@@ -126,8 +126,12 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
                 bar.fg = (fg.red, fg.green, fg.blue)
                 bar.queue_draw()
             self.water_page.set_fg((fg.red, fg.green, fg.blue))
-        if key is None or key in ("accent_auto", "accent_color"):
+        if key is None or key in ("accent_auto", "accent_color", "eq_color_mode", "eq_color",
+                                  "text_color"):
             self._apply_accent()
+        if key is None or key == "eq_style":
+            for eq in (self.compact.eq, self.full.eq):
+                eq.set_style(cfg["eq_style"])
         if key is None or key in ("clock_24h", "world_clock_mode", "world_cities"):
             self._minute = None
             self._tick_clock()
@@ -151,15 +155,29 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, top)
 
     def _apply_accent(self):
-        if self.cfg["accent_auto"] and self._art_accent:
+        cfg = self.cfg
+        if cfg["accent_auto"] and self._art_accent:
             accent = self._art_accent
-        elif self.cfg["accent_auto"]:
-            accent = accent_from_pixbuf(None)
+        elif cfg["accent_auto"]:
+            accent = accent_tuple(cfg["accent_color"])
         else:
-            accent = accent_tuple(self.cfg["accent_color"])
-        for w in (self.compact.eq, self.full.eq, self.full.progress, self.full.vol_bar):
+            accent = accent_tuple(cfg["accent_color"])
+        for w in (self.full.progress, self.full.vol_bar):
             w.accent = accent
             w.queue_draw()
+
+        mode = cfg["eq_color_mode"]
+        if mode == "art" and self._art_accent:
+            eq_accent = self._art_accent
+        elif mode == "text":
+            eq_accent = accent_tuple(cfg["text_color"])
+        elif mode == "custom":
+            eq_accent = accent_tuple(cfg["eq_color"])
+        else:
+            eq_accent = accent_tuple(cfg["accent_color"])
+        for eq in (self.compact.eq, self.full.eq):
+            eq.accent = eq_accent
+            eq.queue_draw()
 
     # --- layout ---------------------------------------------------------
     def _build(self):

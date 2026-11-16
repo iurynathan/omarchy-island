@@ -137,13 +137,16 @@ class Player:
             self.art_path = None
             self.events(self, "track")
             return
+        prev = self.track
         track = Track(md)
-        changed = track != self.track
+        changed = track != prev
+        art_changed = prev is None or track.art_url != prev.art_url
         self.track = track
         if changed:
             self._set_pos(0)
             self.sync_position()
             self.art_path = None
+        if changed or art_changed:
             self._fetch_art(track)
         self.events(self, "track")
 

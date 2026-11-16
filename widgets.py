@@ -62,7 +62,7 @@ class Art(Gtk.DrawingArea):
 
 
 class Equalizer(Gtk.DrawingArea):
-    """Barrinhas animadas enquanto toca; paradas e baixas em pausa."""
+    """Equalizador animado enquanto toca; parado e baixo em pausa."""
 
     BARS = 4
 
@@ -70,11 +70,17 @@ class Equalizer(Gtk.DrawingArea):
         super().__init__()
         self.w, self.h = w, h
         self.accent = DEFAULT_ACCENT
+        self.style = "bars"
         self.playing = False
         self._tick = None
         self.set_size_request(w, h)
         self.set_valign(Gtk.Align.CENTER)
         self.connect("draw", self._draw)
+
+    def set_style(self, style):
+        if style != self.style:
+            self.style = style
+            self.queue_draw()
 
     def set_playing(self, playing):
         self.playing = playing
@@ -87,9 +93,56 @@ class Equalizer(Gtk.DrawingArea):
 
     def _draw(self, _w, cr):
         t = time.monotonic()
+        cr.set_source_rgb(*self.accent)
+        style = self.style
+
+        if style == "dots":
+            n = 4
+            gap = 2
+            max_r = min(self.h / 2, (self.w - gap * (n - 1)) / (2 * n))
+            step = self.w / n
+            for i in range(n):
+                lvl = (0.4 + 0.6 * abs(math.sin(t * (3.2 + i * 1.4) + i * 1.1))
+                       if self.playing else 0.35)
+                r = max(1.2, max_r * lvl)
+                cr.arc((i + 0.5) * step, self.h / 2, r, 0, 2 * math.pi)
+                cr.fill()
+            return
+
+        if style == "wave":
+            n = 5
+            gap = 1.5
+            bw = (self.w - gap * (n - 1)) / n
+            for i in range(n):
+                if self.playing:
+                    lvl = 0.3 + 0.7 * (0.5 + 0.5 * math.sin(t * 5.2 - i * 0.95))
+                else:
+                    lvl = 0.22
+                bh = max(bw, self.h * lvl)
+                rounded_rect(cr, i * (bw + gap), (self.h - bh) / 2, bw, bh, bw / 2)
+                cr.fill()
+            return
+
+        if style == "mirror":
+            n = 5
+            gap = 1.5
+            bw = (self.w - gap * (n - 1)) / n
+            mid = (n - 1) / 2
+            for i in range(n):
+                dist = abs(i - mid) / max(1, mid)
+                if self.playing:
+                    env = 1.0 - 0.32 * dist
+                    lvl = (0.28 + 0.72 * abs(math.sin(t * (3.8 + i * 0.9) + i * 1.4))) * env
+                else:
+                    lvl = 0.25 * (1.0 - 0.3 * dist)
+                bh = max(bw, self.h * lvl)
+                rounded_rect(cr, i * (bw + gap), (self.h - bh) / 2, bw, bh, bw / 2)
+                cr.fill()
+            return
+
+        # "bars" (clássico)
         gap = 2
         bw = (self.w - gap * (self.BARS - 1)) / self.BARS
-        cr.set_source_rgb(*self.accent)
         for i in range(self.BARS):
             if self.playing:
                 lvl = 0.35 + 0.65 * abs(math.sin(t * (3.1 + i * 1.7) + i * 1.3))

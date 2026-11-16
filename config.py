@@ -67,6 +67,9 @@ SCHEMA = {
     "text_color": ("rgb(255,255,255)", _is_color),
     "accent_auto": (True, _is_bool),          # cor de destaque tirada da capa
     "accent_color": ("rgb(30,215,96)", _is_color),
+    "eq_style": ("bars", _choice("bars", "mirror", "wave", "dots")),
+    "eq_color_mode": ("theme", _choice("theme", "art", "text", "custom")),
+    "eq_color": ("rgb(122,162,247)", _is_color),
     "border": (True, _is_bool),
     "radius_expanded": (30, _int_range(8, 48)),
     # relógio
@@ -235,7 +238,6 @@ def build_css(cfg):
 .island {{ background-color: {css_color(bg)}; color: {css_color(fg)}; border: none; border-radius: 0px; }}
 .island.expanded {{
   border-radius: {cfg['radius_expanded']}px; border: {border};
-  box-shadow: 0 14px 36px rgba(0,0,0,0.45);
 }}
 .island .dim, .island .artist {{ color: {css_color(fg, 0.6)}; }}
 .island .time {{ color: {css_color(fg, 0.55)}; }}
