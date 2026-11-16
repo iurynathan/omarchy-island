@@ -133,7 +133,7 @@ class InputMixin:
         ok, dx, dy = ev.get_scroll_deltas()
         if self.expanded and self._hscroll_page(ev, ok, dx, dy):
             return True
-        if not self.cfg["scroll_volume"] or not self.player.proxy:
+        if not self.cfg["scroll_volume"]:
             return False
         log("scroll", ev.time, ev.direction.value_nick, ok, dy, ev.get_source_device().get_name())
         key = (ev.time, ev.direction, round(dy, 3))
@@ -156,7 +156,7 @@ class InputMixin:
         if step:
             v = round(self.player.volume + step * VOLUME_STEP, 2)
             self.player.set_volume(v)
-            self._on_volume(self.player.volume, from_user=True)
+            self.app._on_volume(self.player.volume, from_user=True)
         return True
 
     def _hscroll_page(self, ev, ok, dx, dy):

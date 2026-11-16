@@ -128,19 +128,34 @@ class Equalizer(Gtk.DrawingArea):
             return
 
         if style == "wave":
-            n = 5
-            gap = 1.5
-            bw = (self.w - gap * (n - 1)) / n
-            for i in range(n):
-                if self.playing and self.levels and len(self.levels) >= n:
-                    lvl = 0.2 + 0.8 * self.levels[i]
-                elif self.playing:
-                    lvl = 0.3 + 0.7 * (0.5 + 0.5 * math.sin(t * 5.2 - i * 0.95))
+            mid_y = self.h / 2
+            pts = 16
+            if self.playing and self.levels and len(self.levels) >= 5:
+                energy = sum(self.levels) / len(self.levels)
+                amp_base = (self.h * 0.44) * (0.2 + 0.8 * min(1.0, energy * 1.35))
+            elif self.playing:
+                amp_base = self.h * 0.38
+            else:
+                amp_base = self.h * 0.08
+            cr.set_line_width(2.0)
+            cr.set_line_cap(1)
+            cr.set_line_join(1)
+            for idx in range(pts + 1):
+                u = idx / pts
+                x = 1.0 + u * (self.w - 2.0)
+                env = math.sin(u * math.pi)
+                if self.playing and self.levels and len(self.levels) >= 5:
+                    bi = min(4, int(u * 5))
+                    mod = 0.4 + 0.6 * self.levels[bi]
                 else:
-                    lvl = 0.22
-                bh = max(bw, self.h * lvl)
-                rounded_rect(cr, i * (bw + gap), (self.h - bh) / 2, bw, bh, bw / 2)
-                cr.fill()
+                    mod = 1.0
+                phase = t * 6.0 if self.playing else 0.0
+                y = mid_y + math.sin(u * 2.5 * math.pi - phase) * amp_base * env * mod
+                if idx == 0:
+                    cr.move_to(x, y)
+                else:
+                    cr.line_to(x, y)
+            cr.stroke()
             return
 
         if style == "mirror":

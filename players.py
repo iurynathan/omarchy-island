@@ -8,6 +8,9 @@ on_art(caminho|None), on_volume(float), on_switch(Player|None).
 """
 import hashlib
 import os
+import re
+import shutil
+import subprocess
 import threading
 import time
 import urllib.request
@@ -250,7 +253,24 @@ class Players:
         self.players = {}
         self.active = None
         self._unmute_to = 0.5
+        self._sys_volume = self._read_sys_volume()
         Gio.bus_get(Gio.BusType.SESSION, None, self._bus_ready)
+
+    @staticmethod
+    def _read_sys_volume():
+        if not shutil.which("wpctl"):
+            return 1.0
+        try:
+            out = subprocess.check_output(
+                ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
+                text=True, timeout=1,
+            )
+            if "[MUTED]" in out:
+                return 0.0
+            m = re.search(r"Volume:\s*([0-9.]+)", out)
+            return max(0.0, min(1.0, float(m.group(1)))) if m else 1.0
+        except Exception:
+            return 1.0
 
     # --- descoberta -----------------------------------------------------
     def _bus_ready(self, _src, res):
@@ -365,7 +385,9 @@ class Players:
 
     @property
     def volume(self):
-        return self.active.volume if self.active else 1.0
+        if self.active and self.active.has_volume:
+            return self.active.volume
+        return self._sys_volume
 
     @property
     def is_spotify(self):
@@ -399,17 +421,35 @@ class Players:
             self.active.seek_to(fraction)
 
     def set_volume(self, v):
-        if self.active:
+        v = max(0.0, min(1.0, float(v)))
+        if self.active and self.active.has_volume:
             self.active.set_volume(v)
+            return
+        self._sys_volume = v
+        if shutil.which("wpctl"):
+            subprocess.Popen(
+                ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            subprocess.Popen(
+                ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{v:.2f}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        self.on_volume(v)
 
     def toggle_mute(self):
-        if not self.active:
+        if self.active and self.active.has_volume:
+            if self.active.volume > 0.001:
+                self._unmute_to = self.active.volume
+                self.active.set_volume(0.0)
+            else:
+                self.active.set_volume(self._unmute_to or 0.5)
             return
-        if self.active.volume > 0.001:
-            self._unmute_to = self.active.volume
-            self.active.set_volume(0.0)
+        if self._sys_volume > 0.001:
+            self._unmute_to = self._sys_volume
+            self.set_volume(0.0)
         else:
-            self.active.set_volume(self._unmute_to or 0.5)
+            self.set_volume(self._unmute_to or 0.5)
 
     def raise_window(self):
         if self.active:
