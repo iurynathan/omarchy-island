@@ -21,6 +21,7 @@ PREFIX = "org.mpris.MediaPlayer2."
 PATH = "/org/mpris/MediaPlayer2"
 IFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_IFACE = "org.mpris.MediaPlayer2"
+BROWSER_PLAYERS = {"chromium", "chrome", "google-chrome", "firefox", "brave", "vivaldi", "edge", "opera"}
 CACHE_DIR = os.path.join(GLib.get_user_cache_dir(), "linux-island", "art")
 
 
@@ -119,7 +120,7 @@ class Player:
             self._set_pos(params.unpack()[0])
 
     def _update_volume(self, v):
-        if isinstance(v, (int, float)):
+        if isinstance(v, (int, float)) and self.short not in BROWSER_PLAYERS:
             self.has_volume = True
             self.volume = max(0.0, min(1.0, float(v)))
             self.events(self, "volume")
@@ -428,11 +429,7 @@ class Players:
         self._sys_volume = v
         if shutil.which("wpctl"):
             subprocess.Popen(
-                ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            subprocess.Popen(
-                ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{v:.2f}"],
+                ["sh", "-c", f"wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ {v:.2f}"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
         self.on_volume(v)
