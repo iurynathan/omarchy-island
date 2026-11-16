@@ -69,22 +69,6 @@ class PagesMixin:
         self.pin_btn.connect("toggled", self._on_pin_toggled)
         self._on_pin_toggled(self.pin_btn)
 
-        prev_btn = Gtk.Button()
-        prev_btn.add(icon("go-previous-symbolic", 13))
-        prev_btn.set_relief(Gtk.ReliefStyle.NONE)
-        prev_btn.set_can_focus(False)
-        prev_btn.set_tooltip_text(_("Página anterior"))
-        prev_btn.get_style_context().add_class("tab")
-        prev_btn.connect("clicked", lambda *_a: self.turn_page(-1, wrap=True))
-
-        next_btn = Gtk.Button()
-        next_btn.add(icon("go-next-symbolic", 13))
-        next_btn.set_relief(Gtk.ReliefStyle.NONE)
-        next_btn.set_can_focus(False)
-        next_btn.set_tooltip_text(_("Próxima página"))
-        next_btn.get_style_context().add_class("tab")
-        next_btn.connect("clicked", lambda *_a: self.turn_page(1, wrap=True))
-
         cfg_btn = Gtk.Button()
         cfg_btn.add(icon("emblem-system-symbolic", 13))
         cfg_btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -95,8 +79,6 @@ class PagesMixin:
 
         bar.pack_end(cfg_btn, False, False, 0)
         bar.pack_end(self.pin_btn, False, False, 0)
-        bar.pack_end(next_btn, False, False, 0)
-        bar.pack_end(prev_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
 
         self.pages = Gtk.Stack()

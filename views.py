@@ -75,8 +75,9 @@ class Compact(Gtk.Box):
 
     HEIGHT = 26
 
-    def __init__(self):
+    def __init__(self, player=None):
         super().__init__(spacing=0)
+        self.player = player
         self.get_style_context().add_class("compact")
         self.set_size_request(-1, self.HEIGHT)
         self.set_margin_start(4)
@@ -87,6 +88,33 @@ class Compact(Gtk.Box):
         art_box.set_margin_end(7)
         art_box.add(self.art)
         self.art_rev = revealer(art_box, Gtk.RevealerTransitionType.SLIDE_RIGHT)
+
+        # controles compactos na barra (posição configurável)
+        ctrl_box = Gtk.Box(spacing=1)
+        ctrl_box.set_margin_start(4)
+        ctrl_box.set_margin_end(5)
+        self.mini_play_img = None
+        if player is not None:
+            p_btn, _ = self._mini_ctrl("media-skip-backward-symbolic", player.previous)
+            pl_btn, self.mini_play_img = self._mini_ctrl("media-playback-start-symbolic",
+                                                         player.play_pause)
+            n_btn, _ = self._mini_ctrl("media-skip-forward-symbolic", player.next)
+            for b in (p_btn, pl_btn, n_btn):
+                ctrl_box.pack_start(b, False, False, 0)
+        self.ctrl_rev = revealer(ctrl_box, Gtk.RevealerTransitionType.SLIDE_RIGHT)
+
+        # nome da música / banda na barra (posição configurável)
+        bar_track_box = Gtk.Box()
+        bar_track_box.set_margin_start(4)
+        bar_track_box.set_margin_end(7)
+        self.bar_track_lb = label("dim")
+        bar_track_box.add(self.bar_track_lb)
+        self.bar_track_rev = revealer(bar_track_box, Gtk.RevealerTransitionType.SLIDE_RIGHT)
+
+        self._has_track = False
+        self._playing = False
+        self._bar_track_mode = "off"
+        self._bar_controls_pos = "off"
 
         self.clock = label("clock")
         self.date = label("dim")
@@ -144,8 +172,62 @@ class Compact(Gtk.Box):
         self.middle.add_named(info, "info")
         self.middle.add_named(track, "track")
 
-        for w in (self.art_rev, self.middle, self.eq_rev):
+        for w in (self.ctrl_rev, self.bar_track_rev, self.art_rev, self.middle, self.eq_rev):
             self.pack_start(w, False, False, 0)
+
+    @staticmethod
+    def _mini_ctrl(icon_name, cb):
+        btn = Gtk.Button()
+        img = icon(icon_name, 12)
+        btn.add(img)
+        btn.set_relief(Gtk.ReliefStyle.NONE)
+        btn.set_can_focus(False)
+        btn.get_style_context().add_class("mini-ctrl")
+        btn.connect("clicked", lambda *_a: cb())
+        return btn, img
+
+    def set_bar_media(self, cfg, track):
+        mode = cfg["bar_track_mode"]
+        t_pos = cfg["bar_track_pos"]
+        c_pos = cfg["bar_controls_pos"]
+        self._bar_track_mode = mode
+        self._bar_controls_pos = c_pos
+
+        # Reordena os slots: before_art -> art_rev -> after_art -> middle -> right -> eq_rev
+        order = []
+        if c_pos == "left_before_art":
+            order.append(self.ctrl_rev)
+        if t_pos == "before_art":
+            order.append(self.bar_track_rev)
+        order.append(self.art_rev)
+        if c_pos == "left_after_art":
+            order.append(self.ctrl_rev)
+        if t_pos == "after_art":
+            order.append(self.bar_track_rev)
+        order.append(self.middle)
+        if t_pos == "right":
+            order.append(self.bar_track_rev)
+        if c_pos == "right":
+            order.append(self.ctrl_rev)
+        if self.ctrl_rev not in order:
+            order.append(self.ctrl_rev)
+        if self.bar_track_rev not in order:
+            order.append(self.bar_track_rev)
+        order.append(self.eq_rev)
+        for idx, w in enumerate(order):
+            self.reorder_child(w, idx)
+
+        text = ""
+        if track and mode != "off":
+            if mode == "title":
+                text = clip(track.title, 26)
+            elif mode == "artist":
+                text = clip(track.artist or track.title, 24)
+            else:
+                text = clip(f"{track.title} · {track.artist}" if track.artist else track.title, 34)
+        self.bar_track_lb.set_text(text)
+        self.bar_track_rev.set_reveal_child(bool(text))
+        self.ctrl_rev.set_reveal_child(self._has_track and c_pos != "off")
 
     def set_track_text(self, title, artist):
         self.t_title.set_text(clip(title, 32))
@@ -180,8 +262,17 @@ class Compact(Gtk.Box):
         self.dev_rev.set_reveal_child(bool(icon_name))
 
     def set_music(self, has_track, playing):
+        self._has_track = has_track
+        self._playing = playing
         self.art_rev.set_reveal_child(has_track)
-        self.eq_rev.set_reveal_child(has_track and playing and self.eq.style != "off")
+        self.eq_rev.set_reveal_child(has_track and self.eq.style != "off")
+        self.ctrl_rev.set_reveal_child(has_track and self._bar_controls_pos != "off")
+        self.bar_track_rev.set_reveal_child(
+            has_track and self._bar_track_mode != "off" and bool(self.bar_track_lb.get_text()))
+        if self.mini_play_img is not None:
+            self.mini_play_img.set_from_icon_name(
+                "media-playback-pause-symbolic" if playing else "media-playback-start-symbolic",
+                Gtk.IconSize.BUTTON)
         self.eq.set_playing(playing)
 
 

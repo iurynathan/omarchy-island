@@ -38,7 +38,7 @@ flowchart LR
 ### Decisiones de UX/UI
 - **Dos ventanas `gtk-layer-shell` independientes:** la píldora de la barra (`y = 0`, 26px, sin borde) y el panel expandido (`y = 30px`, esquinas redondeadas) son superficies separadas. Al abrir el panel, el reloj sigue visible en la barra (igual que el `omarchy.clock` original).
 - **Espaciador dinámico (`omarchy.spacer`):** cada vez que cambia el ancho de la píldora compacta (música sonando/pausada, fecha o clima activados/desactivados), la isla ajusta automáticamente el tamaño de `omarchy.spacer` en `~/.config/omarchy/shell.json`, manteniendo los iconos de `centerBegin` pegados al reloj.
-- **Barra de navegación fija arriba:** las pestañas (**Inicio**, **Mundo**, **Agenda**, **Agua**), las flechas `<` / `>`, el botón **Fijar abierta** (*Pin*) y el acceso a **Ajustes** permanecen siempre en el mismo sitio en la parte superior del panel, sin importar la altura de cada página.
+- **Barra de navegación fija arriba:** las pestañas (**Inicio**, **Mundo**, **Agenda**, **Agua**), el botón **Fijar abierta** (*Pin*) y el acceso a **Ajustes** permanecen siempre en el mismo sitio en la parte superior del panel, sin importar la altura de cada página.
 - **No se cierra al hacer clic dentro:** hacer clic en zonas libres del panel no lo cierra por accidente; se cierra al apartar el ratón (margen de 900 ms), al hacer clic en la píldora de la barra o al desfijar el Pin.
 - **Multi-monitor sincronizado:** crea una instancia anclada en cada monitor conectado (`monitor-added` / `monitor-removed`), compartiendo reproductor, volumen, clima, agenda e hidratación.
 - **Tema vivo de Omarchy:** lee `background`, `foreground` y `accent` del `colors.toml` del tema activo y se actualiza al instante mediante `Gio.FileMonitor` en `theme.generation` + hook `theme-set.d`.
@@ -102,7 +102,7 @@ Todos los cambios se aplican y guardan automáticamente al instante (y se confir
 | Pasar el ratón por la píldora | abre el panel debajo de la barra |
 | Clic en la píldora de la barra | alterna abrir / cerrar |
 | Clic en **Fijar abierta** (Pin) | mantiene el panel abierto al apartar el ratón |
-| Clic en pestañas / `<` `>` / deslizar | cambia entre *Inicio*, *Mundo*, *Agenda* y *Agua* |
+| Clic en pestañas / deslizar | cambia entre *Inicio*, *Mundo*, *Agenda* y *Agua* |
 | Girar la rueda del ratón | ajusta el volumen (MPRIS o PipeWire) |
 | Clic con botón central | play / pausa |
 | Clic derecho | menú: Ajustes, abrir reproductor, Salir |

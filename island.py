@@ -147,6 +147,8 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._sync_page_dots()
         if key is None or key in ("show_date", "show_weather"):
             self.compact.set_visibility(cfg["show_date"], cfg["show_weather"])
+        if key is None or key in ("bar_track_mode", "bar_track_pos", "bar_controls_pos"):
+            self.compact.set_bar_media(cfg, self.player.track)
         if key is None or (key or "").startswith("agenda_") or key in (
                 "week_start", "birth_year", "life_expectancy"):
             self._on_agenda_change()
@@ -204,7 +206,7 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.shell.get_style_context().add_class("island")
         self.add(self.shell)
 
-        self.compact = Compact()
+        self.compact = Compact(self.player)
         self.shell.pack_start(self.compact, True, True, 0)
 
         self.popup = Gtk.Window(title="linux-island-popup")
@@ -318,10 +320,19 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._on_status(False)
 
     def _on_track(self, track, initial=False):
+        if track is None:
+            # Evita layout shift se o player limpar metadados brevemente entre faixas
+            self._later("drop_track", 650, lambda: self._apply_track(None, initial=True))
+            return
+        self._cancel("drop_track")
+        self._apply_track(track, initial=initial)
+
+    def _apply_track(self, track, initial=False):
         prev = self.full.title.get_text() if self.full.music_rev.get_reveal_child() else ""
         self.full.set_track(track)
         if track:
             self.compact.set_track_text(track.title, track.artist)
+        self.compact.set_bar_media(self.cfg, track)
         self.compact.set_music(track is not None, self.player.playing)
         self._follow_size()
         if not initial and track and prev and prev != track.title:

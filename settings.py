@@ -529,6 +529,31 @@ class Settings(SettingsPagesMixin, Gtk.Window):
                                                                  "Ex.: firefox, chromium"),
                   "Nomes separados por vírgula — por exemplo, para não mostrar vídeos do navegador")
 
+        bar_media = self._group(page, "Mídia na barra")
+        self._row(bar_media, "Texto na barra", self._choice(
+            "bar_track_mode",
+            [
+                ("off", "Desativado"),
+                ("title", "Nome da música"),
+                ("artist", "Nome da banda / artista"),
+                ("both", "Música e banda"),
+            ]))
+        self._row(bar_media, "Posição do texto", self._choice(
+            "bar_track_pos",
+            [
+                ("before_art", "Esquerda (antes da capa)"),
+                ("after_art", "Esquerda (depois da capa)"),
+                ("right", "Direita"),
+            ]))
+        self._row(bar_media, "Botões do player na barra", self._choice(
+            "bar_controls_pos",
+            [
+                ("off", "Ocultos"),
+                ("left_before_art", "Esquerda (antes da capa)"),
+                ("left_after_art", "Esquerda (depois da capa)"),
+                ("right", "Direita"),
+            ]))
+
         pos = self._group(page, "Posição")
         self._row(pos, "Distância do topo (px)", self._spin("margin_top", 0, 200))
         self._row(pos, "Ajustar espaçador da barra", self._switch("bar_spacer_sync"),

@@ -83,6 +83,9 @@ SCHEMA = {
     "life_expectancy": (90, _int_range(1, 150)),
     # integração com o Omarchy
     "bar_spacer_sync": (True, _is_bool),
+    "bar_track_mode": ("off", _choice("off", "title", "artist", "both")),
+    "bar_track_pos": ("after_art", _choice("before_art", "after_art", "right")),
+    "bar_controls_pos": ("off", _choice("off", "left_before_art", "left_after_art", "right")),
     "world_cities": (
         "Maceió|America/Maceio, London|Europe/London, Los Angeles|America/Los_Angeles",
         lambda v: isinstance(v, str) and len(v) <= 1000,

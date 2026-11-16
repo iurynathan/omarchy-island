@@ -38,7 +38,7 @@ flowchart LR
 ### Escolhas de UX/UI
 - **Duas janelas `gtk-layer-shell` independentes:** a pílula da barra (`y = 0`, 26px, sem borda) e o painel expandido (`y = 30px`, cantos arredondados) são superfícies separadas. Ao abrir o painel, a pílula continua visível na barra (assim como o `omarchy.clock` original).
 - **Espaçador dinâmico (`omarchy.spacer`):** sempre que a largura da pílula compacta muda (música tocando/parando, data ou clima ligados/desligados), a ilha ajusta automaticamente o tamanho de `omarchy.spacer` no `~/.config/omarchy/shell.json`, mantendo os ícones de `centerBegin` colados ao relógio.
-- **Barra de navegação fixa no topo:** abas (**Início**, **Mundo**, **Agenda**, **Água**), setas `<` / `>`, botão **Fixar aberta** (*Pin*) e atalho de **Configurações** ficam sempre no mesmo lugar no topo do painel, mesmo quando cada aba tem altura diferente.
+- **Barra de navegação fixa no topo:** abas (**Início**, **Mundo**, **Agenda**, **Água**), botão **Fixar aberta** (*Pin*) e atalho de **Configurações** ficam sempre no mesmo lugar no topo do painel, mesmo quando cada aba tem altura diferente.
 - **Não fecha ao clicar dentro:** clicar em áreas livres do painel não fecha a ilha acidentalmente; ela fecha ao tirar o mouse (com tolerância de 900 ms) ou ao clicar na pílula da barra / desafixar o Pin.
 - **Multi-monitor sincronizado:** cria uma instância ancorada em cada monitor conectado (`monitor-added` / `monitor-removed`), compartilhando player, volume, clima, agenda e hidratação.
 - **Tema vivo do Omarchy:** lê `background`, `foreground` e `accent` do `colors.toml` do tema ativo e atualiza ao vivo via `Gio.FileMonitor` em `theme.generation` + hook `theme-set.d`.
@@ -102,7 +102,7 @@ Todas as opções aplicam e salvam automaticamente ao vivo (com confirmação im
 | Passar o mouse na pílula da barra | abre o painel abaixo da barra |
 | Clicar na pílula da barra | alterna abrir / fechar |
 | Clicar em **Fixar aberta** (Pin) | mantém o painel aberto mesmo tirando o mouse |
-| Clicar nas abas / `<` `>` / arrastar | troca entre *Início*, *Mundo*, *Agenda* e *Água* |
+| Clicar nas abas / arrastar | troca entre *Início*, *Mundo*, *Agenda* e *Água* |
 | Rolar a rodinha do mouse | ajusta o volume (MPRIS ou PipeWire) |
 | Clique do meio | play / pause |
 | Botão direito | menu: Configurações, abrir player, Sair |

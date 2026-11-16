@@ -149,10 +149,18 @@ class Player:
         if changed:
             self._set_pos(0)
             self.sync_position()
-            self.art_path = None
-        if changed or art_changed:
+        if (changed or art_changed) and track.art_url:
             self._fetch_art(track)
+        elif changed and not track.art_url:
+            # Aguarda brevemente: navegadores costumam enviar artUrl logo após o título
+            GLib.timeout_add(650, self._clear_art_if_empty, track.key())
         self.events(self, "track")
+
+    def _clear_art_if_empty(self, key):
+        if self.track and self.track.key() == key and not self.track.art_url:
+            self.art_path = None
+            self.events(self, "art")
+        return False
 
     # --- posição (alguns players não emitem mudanças de Position) --------
     def _set_pos(self, us):

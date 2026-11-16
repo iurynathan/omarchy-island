@@ -38,7 +38,7 @@ flowchart LR
 ### UX/UI Choices
 - **Two independent `gtk-layer-shell` windows:** the bar pill (`y = 0`, 26px, borderless) and the expanded panel (`y = 30px`, rounded corners) are separate surfaces. Opening the panel keeps the clock pill visible in the bar (just like the stock `omarchy.clock`).
 - **Dynamic bar spacer (`omarchy.spacer`):** whenever the compact pill width changes (music playing/stopped, date or weather toggled), the island automatically updates `omarchy.spacer` in `~/.config/omarchy/shell.json`, keeping `centerBegin` icons snug next to the clock.
-- **Fixed top navigation bar:** tabs (**Home**, **World**, **Calendar**, **Water**), `<` / `>` arrows, **Pin open** toggle, and **Settings** shortcut stay in the exact same spot at the top of the popup regardless of page height.
+- **Fixed top navigation bar:** tabs (**Home**, **World**, **Calendar**, **Water**), **Pin open** toggle, and **Settings** shortcut stay in the exact same spot at the top of the popup regardless of page height.
 - **Doesn't close on inner clicks:** clicking empty space inside the open panel will not close it accidentally; it closes when moving the pointer away (900 ms grace delay), clicking the bar pill, or unpinning.
 - **Multi-monitor sync:** spawns one anchored instance per connected monitor (`monitor-added` / `monitor-removed`), sharing player, volume, weather, calendar, and hydration state.
 - **Live Omarchy theme sync:** reads `background`, `foreground`, and `accent` from the active theme's `colors.toml` and updates live via `Gio.FileMonitor` on `theme.generation` + `theme-set.d` hook.
@@ -102,7 +102,7 @@ All changes apply and save live automatically (and flush immediately when closin
 | Hover the bar pill | opens the panel below the bar |
 | Click the bar pill | toggles open / closed |
 | Click **Pin open** | keeps the panel open when moving the pointer away |
-| Click tabs / `<` `>` / swipe | switches between *Home*, *World*, *Calendar*, and *Water* |
+| Click tabs / swipe | switches between *Home*, *World*, *Calendar*, and *Water* |
 | Scroll mouse wheel | adjusts volume (MPRIS or PipeWire) |
 | Middle-click | play / pause |
 | Right-click | opens menu: Settings, open player, Quit |
