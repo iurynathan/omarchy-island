@@ -110,18 +110,19 @@ class Equalizer(Gtk.DrawingArea):
         style = self.style
 
         if style == "dots":
-            n = 4
+            n = 3
             gap = 2
-            max_r = min(self.h / 2, (self.w - gap * (n - 1)) / (2 * n))
+            max_r = min(self.h / 2 - 0.5, (self.w - gap * (n - 1)) / (2 * n))
             step = self.w / n
             for i in range(n):
-                if self.playing and self.levels and len(self.levels) >= 4:
-                    lvl = 0.35 + 0.65 * self.levels[i]
+                if self.playing and self.levels and len(self.levels) >= 3:
+                    val = self.levels[i * 2] if i * 2 < len(self.levels) else self.levels[-1]
+                    lvl = 0.35 + 0.65 * val
                 elif self.playing:
-                    lvl = 0.4 + 0.6 * abs(math.sin(t * (3.2 + i * 1.4) + i * 1.1))
+                    lvl = 0.35 + 0.65 * abs(math.sin(t * (3.2 + i * 1.4) + i * 1.1))
                 else:
                     lvl = 0.35
-                r = max(1.2, max_r * lvl)
+                r = max(0.7, max_r * lvl)
                 cr.arc((i + 0.5) * step, self.h / 2, r, 0, 2 * math.pi)
                 cr.fill()
             return

@@ -158,6 +158,9 @@ class Settings(SettingsPagesMixin, Gtk.Window):
 
         header = Gtk.HeaderBar(show_close_button=True)
         header.set_title(_("Configurações"))
+        reset = Gtk.Button(label=_("Restaurar padrões"))
+        reset.connect("clicked", lambda *_a: self.cfg.reset())
+        header.pack_end(reset)
         self.set_titlebar(header)
 
         stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
@@ -174,23 +177,7 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         if web is not None:
             stack.add_titled(self._page_spotify(), "spotify", _("Spotify"))
         self._stack = stack
-
-        footer = Gtk.Box(spacing=10)
-        for side in ("top", "bottom", "start", "end"):
-            getattr(footer, f"set_margin_{side}")(10 if side in ("top", "bottom") else 16)
-        reset = Gtk.Button(label=_("Restaurar padrões"))
-        reset.connect("clicked", lambda *_a: self.cfg.reset())
-        self.apply_btn = Gtk.Button(label=_("Aplicar"))
-        self.apply_btn.get_style_context().add_class("suggested")
-        self.apply_btn.connect("clicked", lambda *_a: self._apply_and_save())
-        footer.pack_start(reset, False, False, 0)
-        footer.pack_end(self.apply_btn, False, False, 0)
-
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        root.pack_start(stack, True, True, 0)
-        root.pack_start(Gtk.Separator(), False, False, 0)
-        root.pack_start(footer, False, False, 0)
-        self.add(root)
+        self.add(stack)
 
         cfg.connect(self._on_config)
         self.connect("destroy", lambda *_a: (
@@ -205,17 +192,6 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         for fn in self._pending_commits:
             fn()
         self.cfg.flush()
-
-    def _apply_and_save(self):
-        self._flush_pending()
-        app = self.get_application()
-        if app and hasattr(app, "apply_all"):
-            app.apply_all()
-        if hasattr(self, "apply_btn"):
-            self.apply_btn.set_label(_("Aplicado ✓"))
-            GLib.timeout_add(1500, lambda: (
-                self.apply_btn.get_realized() and self.apply_btn.set_label(_("Aplicar")),
-                False)[1])
 
     def show_page(self, name):
         if self._stack.get_child_by_name(name):
