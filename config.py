@@ -78,7 +78,6 @@ SCHEMA = {
     "birth_year": (0, _int_range(0, 2100)),
     "life_expectancy": (90, _int_range(1, 150)),
     # integração com o Omarchy
-    "omarchy_font": (True, _is_bool),
     "bar_spacer_sync": (True, _is_bool),
     "world_cities": (
         "Maceió|America/Maceio, London|Europe/London, Los Angeles|America/Los_Angeles",
@@ -200,6 +199,11 @@ class Config:
         if self._save_id:
             GLib.source_remove(self._save_id)
         self._save_id = GLib.timeout_add(400, self._save)
+
+    def flush(self):
+        if self._save_id:
+            GLib.source_remove(self._save_id)
+            self._save()
 
     def _save(self):
         self._save_id = None

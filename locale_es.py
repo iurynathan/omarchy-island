@@ -142,6 +142,11 @@ ES = {
     # ajustes: ventana y pestañas
     "linux-island — Configurações": "linux-island — Ajustes",
     "Configurações": "Ajustes",
+    "Aplicar": "Aplicar",
+    "Ajustar espaçador da barra": "Ajustar espaciador de la barra",
+    "Sincroniza o espaço central do Omarchy com a largura da ilha":
+        "Sincroniza el espacio central de Omarchy con el ancho de la isla",
+    "Reinicia a ilha": "Reinicia la isla",
     "Restaurar padrões": "Restaurar valores",
     "Aparência": "Apariencia",
     "Relógio e clima": "Reloj y clima",

@@ -140,6 +140,11 @@ EN = {
     # settings: window and tabs
     "linux-island — Configurações": "linux-island — Settings",
     "Configurações": "Settings",
+    "Aplicar": "Apply",
+    "Ajustar espaçador da barra": "Sync bar spacer",
+    "Sincroniza o espaço central do Omarchy com a largura da ilha":
+        "Syncs Omarchy's center bar spacer with the island width",
+    "Reinicia a ilha": "Restart the island",
     "Restaurar padrões": "Restore defaults",
     "Aparência": "Appearance",
     "Relógio e clima": "Clock & weather",

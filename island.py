@@ -141,8 +141,14 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         if key is None or (key or "").startswith("water_"):
             self._on_water_change()
         if key is None or key == "margin_top":
-            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, cfg["margin_top"])
+            self._update_top_margin()
         self._follow_size()
+
+    def _update_top_margin(self):
+        top = self.cfg["margin_top"]
+        if self.expanded:
+            top += Compact.HEIGHT + 4
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, top)
 
     def _apply_accent(self):
         if self.cfg["accent_auto"] and self._art_accent:
@@ -227,6 +233,7 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         if not value and getattr(self, "pinned", False):
             self.set_pinned(False)
         log("expanded", value)
+        self._update_top_margin()
         ctx = self.shell.get_style_context()
         (ctx.add_class if value else ctx.remove_class)("expanded")
         self.stack.set_visible_child_name("expanded" if value else "compact")
@@ -613,9 +620,20 @@ class App(Gtk.Application):
             self.open_settings()
         return 0
 
+    def apply_all(self):
+        """Força atualização imediata de tema, clima, layout e espaçador."""
+        if self.cfg["omarchy_theme"]:
+            self.cfg.sync_omarchy_theme(notify=True)
+        self._on_cfg_change(None)
+        self.weather.configure(self.cfg["city"], self.cfg["units"])
+        self.agenda.refresh()
+        self.water.tick()
+
     def restart(self):
         """Reabre a ilha (ex.: para trocar o idioma). O ambiente do run.sh é herdado."""
         log("reiniciando")
+        if self.cfg:
+            self.cfg.flush()
         sys.stdout.flush()
         os.execv(sys.executable, [sys.executable, os.path.join(HERE, "island.py")])
 

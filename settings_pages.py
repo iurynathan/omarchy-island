@@ -46,6 +46,7 @@ class SettingsPagesMixin:
 
         entry.connect("changed", changed)
         entry.connect("activate", commit)
+        self._pending_commits.append(commit)
         self._sync["notif_ignore"] = lambda: (
             entry.get_text().strip() != self.cfg["notif_ignore"]
             and entry.set_text(self.cfg["notif_ignore"]))

@@ -85,6 +85,15 @@ class PagesMixin:
         next_btn.get_style_context().add_class("tab")
         next_btn.connect("clicked", lambda *_a: self.turn_page(1, wrap=True))
 
+        cfg_btn = Gtk.Button()
+        cfg_btn.add(icon("emblem-system-symbolic", 13))
+        cfg_btn.set_relief(Gtk.ReliefStyle.NONE)
+        cfg_btn.set_can_focus(False)
+        cfg_btn.set_tooltip_text(_("Configurações…"))
+        cfg_btn.get_style_context().add_class("tab")
+        cfg_btn.connect("clicked", lambda *_a: self.app.open_settings())
+
+        bar.pack_end(cfg_btn, False, False, 0)
         bar.pack_end(self.pin_btn, False, False, 0)
         bar.pack_end(next_btn, False, False, 0)
         bar.pack_end(prev_btn, False, False, 0)

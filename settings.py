@@ -144,6 +144,7 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         self.water = water
         self.agenda = agenda
         self._sync = {}  # chave -> função que atualiza o widget a partir da config
+        self._pending_commits = []
         self.set_default_size(520, 560)
         self.set_icon_name("preferences-system")
         self.get_style_context().add_class("island-settings")
@@ -156,6 +157,10 @@ class Settings(SettingsPagesMixin, Gtk.Window):
 
         header = Gtk.HeaderBar(show_close_button=True)
         header.set_title(_("Configurações"))
+        apply_btn = Gtk.Button(label=_("Aplicar"))
+        apply_btn.get_style_context().add_class("suggested")
+        apply_btn.connect("clicked", lambda *_a: self._apply_and_save())
+        header.pack_end(apply_btn)
         reset = Gtk.Button(label=_("Restaurar padrões"))
         reset.connect("clicked", lambda *_a: self.cfg.reset())
         header.pack_end(reset)
@@ -179,9 +184,21 @@ class Settings(SettingsPagesMixin, Gtk.Window):
 
         cfg.connect(self._on_config)
         self.connect("destroy", lambda *_a: (
+            self._flush_pending(),
             cfg.disconnect(self._on_config),
             Gtk.StyleContext.remove_provider_for_screen(self.get_screen(), self._css)))
         self.show_all()
+
+    def _flush_pending(self):
+        for fn in self._pending_commits:
+            fn()
+        self.cfg.flush()
+
+    def _apply_and_save(self):
+        self._flush_pending()
+        app = self.get_application()
+        if app and hasattr(app, "apply_all"):
+            app.apply_all()
 
     def show_page(self, name):
         if self._stack.get_child_by_name(name):
@@ -250,7 +267,13 @@ class Settings(SettingsPagesMixin, Gtk.Window):
     def _color(self, key, alpha=False):
         btn = Gtk.ColorButton(use_alpha=alpha)
         btn.set_rgba(rgba(self.cfg[key]))
-        btn.connect("color-set", lambda b: self.cfg.set(key, b.get_rgba().to_string()))
+
+        def on_set(b):
+            if key in ("bg_color", "text_color") and self.cfg["omarchy_theme"]:
+                self.cfg.set("omarchy_theme", False)
+            self.cfg.set(key, b.get_rgba().to_string())
+
+        btn.connect("color-set", on_set)
         self._sync[key] = lambda: btn.set_rgba(rgba(self.cfg[key]))
         return btn
 
@@ -282,6 +305,7 @@ class Settings(SettingsPagesMixin, Gtk.Window):
 
         entry.connect("changed", changed)
         entry.connect("activate", commit)
+        self._pending_commits.append(commit)
         self._sync[key] = lambda: (entry.get_text().strip() != self.cfg[key]
                                    and entry.set_text(self.cfg[key]))
         return entry
@@ -364,6 +388,7 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         btn.add(box)
 
         def apply(*_):
+            self.cfg.set("omarchy_theme", False)
             self.cfg.set("bg_color", bg)
             self.cfg.set("text_color", fg)
             self.cfg.set("accent_auto", auto)
@@ -415,6 +440,7 @@ class Settings(SettingsPagesMixin, Gtk.Window):
 
         entry.connect("changed", changed)
         entry.connect("activate", commit)
+        self._pending_commits.append(commit)
         self._sync["city"] = lambda: (entry.get_text().strip() != self.cfg["city"]
                                       and entry.set_text(self.cfg["city"]))
         self._row(weather, "Cidade", entry, "Deixe vazio para detectar pela sua conexão")
@@ -441,12 +467,14 @@ class Settings(SettingsPagesMixin, Gtk.Window):
 
         pos = self._group(page, "Posição")
         self._row(pos, "Distância do topo (px)", self._spin("margin_top", 0, 200))
+        self._row(pos, "Ajustar espaçador da barra", self._switch("bar_spacer_sync"),
+                  "Sincroniza o espaço central do Omarchy com a largura da ilha")
 
         lang = self._group(page, "Idioma")
         self._row(lang, "Idioma da ilha", self._choice("language", LANGUAGES),
                   "Automático segue o idioma do sistema")
         restart = Gtk.Button(label=_("Reiniciar agora"))
-        restart.connect("clicked", lambda *_a: self.get_application().restart())
+        restart.connect("clicked", lambda *_a: (self._flush_pending(), self.get_application().restart()))
         self._row(lang, "Aplicar o idioma", restart, "A ilha reinicia para trocar o idioma")
 
         system = self._group(page, "Sistema")

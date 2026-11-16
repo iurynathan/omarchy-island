@@ -14,7 +14,7 @@ DEBUG = bool(os.environ.get("ISLAND_DEBUG"))
 CLICK_SLOP_PX = 8        # até isso de movimento, ainda é clique
 SWIPE_PX = 50            # a partir disso, arrastar para o lado troca de página
 HSCROLL_STEP = 3.0       # deltas horizontais do touchpad para trocar de página
-COLLAPSE_DELAY_MS = 700  # tolera leaves espúrios do compositor
+COLLAPSE_DELAY_MS = 900  # tolera leaves espúrios e a folga abaixo da barra
 VOLUME_STEP = 0.05       # 5% por "clique" da roda do mouse
 
 
@@ -73,7 +73,10 @@ class InputMixin:
         """Se a soltura do botão se perdeu, não deixa a ilha presa aberta."""
         if self._press is None:
             return
-        held = ev.get_state()[1] & Gdk.ModifierType.BUTTON1_MASK
+        state = ev.get_state()
+        if isinstance(state, tuple):
+            state = state[1]
+        held = state & Gdk.ModifierType.BUTTON1_MASK
         if not held or time.monotonic() - self._press[2] > 3:
             log("press perdido, descartando")
             self._press = None
