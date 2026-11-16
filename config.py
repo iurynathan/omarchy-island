@@ -6,6 +6,42 @@ import re
 from gi.repository import Gdk, GLib
 
 PATH = os.path.join(GLib.get_user_config_dir(), "linux-island", "config.json")
+OMARCHY_COLORS = os.path.join(GLib.get_user_state_dir(), "omarchy", "current", "theme", "colors.toml")
+
+
+def _hex_to_rgb_tuple(value):
+    m = re.fullmatch(r"#?([0-9a-fA-F]{6})", value.strip())
+    if not m:
+        return None
+    h = m.group(1)
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def read_omarchy_colors():
+    """Lê background, foreground e accent do colors.toml do tema ativo do Omarchy."""
+    try:
+        with open(OMARCHY_COLORS) as f:
+            content = f.read()
+    except OSError:
+        return None
+    found = {}
+    for line in content.splitlines():
+        m = re.match(r'^\s*(background|foreground|accent)\s*=\s*"([^"]+)"', line)
+        if m:
+            rgb = _hex_to_rgb_tuple(m.group(2))
+            if rgb:
+                found[m.group(1)] = rgb
+    out = {}
+    if "background" in found:
+        r, g, b = found["background"]
+        out["bg_color"] = f"rgba({r},{g},{b},1)"
+    if "foreground" in found:
+        r, g, b = found["foreground"]
+        out["text_color"] = f"rgb({r},{g},{b})"
+    if "accent" in found:
+        r, g, b = found["accent"]
+        out["accent_color"] = f"rgb({r},{g},{b})"
+    return out or None
 
 # chave -> (padrão, validador). Validadores recebem o valor lido do JSON e
 # devolvem True se ele for aceitável; senão vale o padrão.
@@ -26,6 +62,7 @@ def _choice(*opts):
 
 SCHEMA = {
     # aparência
+    "omarchy_theme": (True, _is_bool),
     "bg_color": ("rgba(0,0,0,1)", _is_color),
     "text_color": ("rgb(255,255,255)", _is_color),
     "accent_auto": (True, _is_bool),          # cor de destaque tirada da capa
@@ -81,7 +118,7 @@ SCHEMA = {
     "peek_on_track": (True, _is_bool),
     "scroll_volume": (True, _is_bool),
     "hover_delay_ms": (120, _int_range(0, 2000)),
-    "margin_top": (2, _int_range(0, 200)),
+    "margin_top": (1, _int_range(0, 200)),
 }
 
 
@@ -93,6 +130,19 @@ class Config:
         self._load()
         # overrides da linha de comando valem só para esta execução
         self._overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
+        self.sync_omarchy_theme(notify=False)
+
+    def sync_omarchy_theme(self, notify=False):
+        if not self["omarchy_theme"]:
+            return
+        colors = read_omarchy_colors()
+        if not colors:
+            return
+        for key, value in colors.items():
+            if notify:
+                self.set(key, value)
+            else:
+                self._values[key] = value
 
     def _load(self):
         try:

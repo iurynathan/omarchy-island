@@ -8,7 +8,9 @@ from i18n import LANGUAGES, _
 from settings_pages import SettingsPagesMixin
 
 AUTOSTART = os.path.join(GLib.get_user_config_dir(), "autostart", "linux-island.desktop")
+HYPR_AUTOSTART = os.path.join(GLib.get_user_config_dir(), "hypr", "autostart.lua")
 RUN_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run.sh")
+HYPR_LAUNCH_LINE = f'o.launch_on_start("{RUN_SH}")'
 
 PRESETS = [  # nome, fundo, texto, destaque automático, destaque fixo
     ("Clássico", "rgba(0,0,0,1)", "rgb(255,255,255)", True, "rgb(30,215,96)"),
@@ -101,10 +103,27 @@ window.island-settings button.suggested {{ background: {A}; color: #000; font-we
 
 
 def autostart_enabled():
+    if os.path.exists(HYPR_AUTOSTART):
+        try:
+            with open(HYPR_AUTOSTART) as f:
+                return any(RUN_SH in ln and not ln.lstrip().startswith("--") for ln in f)
+        except OSError:
+            pass
     return os.path.exists(AUTOSTART)
 
 
 def set_autostart(enabled):
+    if os.path.exists(HYPR_AUTOSTART):
+        with open(HYPR_AUTOSTART) as f:
+            lines = f.read().splitlines()
+        cleaned = [ln for ln in lines if RUN_SH not in ln]
+        if enabled:
+            cleaned.append(HYPR_LAUNCH_LINE)
+        with open(HYPR_AUTOSTART, "w") as f:
+            f.write("\n".join(cleaned).rstrip() + "\n")
+        if not enabled and os.path.exists(AUTOSTART):
+            os.remove(AUTOSTART)
+        return
     if enabled:
         os.makedirs(os.path.dirname(AUTOSTART), exist_ok=True)
         with open(AUTOSTART, "w") as f:
@@ -288,6 +307,13 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         for name, bg, fg, auto, accent in PRESETS:
             flow.add(self._preset_button(name, bg, fg, auto, accent))
         themes.add(flow)
+
+        omarchy_sw = self._switch("omarchy_theme")
+        omarchy_sw.connect(
+            "notify::active",
+            lambda w, _p: w.get_active() and self.cfg.sync_omarchy_theme(notify=True))
+        self._row(themes, "Seguir tema do Omarchy", omarchy_sw,
+                  "Sincroniza fundo, texto e destaque com o tema ativo do Omarchy")
 
         colors = self._group(page, "Cores")
         self._row(colors, "Fundo", self._color("bg_color", alpha=True),

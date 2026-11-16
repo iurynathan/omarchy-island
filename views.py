@@ -73,7 +73,7 @@ class Compact(Gtk.Box):
     Na troca de faixa, o miolo vira "título · artista" por alguns segundos.
     """
 
-    HEIGHT = 28
+    HEIGHT = 24
 
     def __init__(self):
         super().__init__(spacing=0)
@@ -82,7 +82,7 @@ class Compact(Gtk.Box):
         self.set_margin_start(10)
         self.set_margin_end(12)
 
-        self.art = Art(20, 10)
+        self.art = Art(18, 9)
         art_box = Gtk.Box()
         art_box.set_margin_end(9)
         art_box.add(self.art)

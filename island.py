@@ -82,9 +82,32 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.notifications = NotificationWatcher(self._on_notification)
         self._apply()
         cfg.connect(self._apply)
+        self._watch_omarchy_theme()
         self.show_all()
         GLib.timeout_add(250, self._tick_music)
         GLib.timeout_add(1000, self._tick_clock)
+
+    def _watch_omarchy_theme(self):
+        self._theme_mon = None
+        gen_path = os.path.join(GLib.get_user_state_dir(), "omarchy", "current", "theme.generation")
+        if not os.path.exists(os.path.dirname(gen_path)):
+            return
+        try:
+            self._theme_mon = Gio.File.new_for_path(gen_path).monitor_file(
+                Gio.FileMonitorFlags.NONE, None)
+            self._theme_mon.connect("changed", self._on_omarchy_theme_changed)
+        except GLib.Error as e:
+            log("theme monitor erro:", e.message)
+
+    def _on_omarchy_theme_changed(self, _mon, _file, _other, event):
+        if event in (Gio.FileMonitorEvent.CHANGED,
+                     Gio.FileMonitorEvent.CREATED,
+                     Gio.FileMonitorEvent.CHANGES_DONE_HINT):
+            self._later("omarchy_theme", 150, self._reload_omarchy_theme)
+
+    def _reload_omarchy_theme(self):
+        self.cfg.sync_omarchy_theme(notify=True)
+        self._apply()
 
     # --- superfície layer-shell ----------------------------------------
     def _setup_surface(self):
@@ -365,6 +388,8 @@ class App(Gtk.Application):
                              _("Cidade do clima só nesta execução"), "CIDADE")
         self.add_main_option("margin", 0, GLib.OptionFlags.NONE, GLib.OptionArg.INT,
                              _("Distância do topo só nesta execução"), "PX")
+        self.add_main_option("reload-theme", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
+                             _("Recarrega o tema do Omarchy"), None)
         self.notifier = Notifier(self._notif_action)
 
     def notify_water(self, consumed, goal):
@@ -391,6 +416,10 @@ class App(Gtk.Application):
                           else None})
             self.island = Island(self, cfg)
             self.add_window(self.island)
+        elif opts.get("reload-theme"):
+            self.island.cfg.sync_omarchy_theme(notify=True)
+            self.island._apply()
+            return 0
         if opts.get("settings"):
             self.open_settings()
         return 0

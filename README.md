@@ -1,8 +1,10 @@
 <div align="center">
 
-# linux-island
+# omarchy-island
 
-**A Dynamic Island que faltava no seu Linux.**
+**A Dynamic Island adaptada para o Omarchy (Hyprland + Wayland).**
+
+Baseado no [linux-island](https://github.com/mrlazarias/linux-island) de Murilo Azarias, adaptado para encaixar na barra de 26px do Omarchy, seguir os temas automaticamente e iniciar com o Hyprland.
 
 Hora, clima, música, agenda, notificações e lembretes, tudo numa pílula elegante no topo da tela, que se abre quando você precisa e some quando não precisa.
 
@@ -100,30 +102,42 @@ Tem **não perturbe**, opção de **esconder o texto** em apresentações e uma 
 
 | Ambiente | |
 |---|---|
-| **COSMIC** (Pop!_OS 24.04) | ✅ testado; ocupa o lugar do relógio do painel |
-| **Hyprland, Sway, river, niri, Wayfire** | 🟡 deve funcionar |
+| **Omarchy / Hyprland** (Arch Linux) | ✅ adaptado (barra de 26px, sync de tema e autostart) |
+| **COSMIC** (Pop!_OS 24.04) | ✅ testado (upstream); ocupa o lugar do relógio do painel |
+| **Sway, river, niri, Wayfire** | 🟡 deve funcionar |
 | **KDE Plasma** (Wayland) | 🟡 deve funcionar |
 | **GNOME** | ❌ ainda não |
 | **X11** | ❌ não |
 
-Testou em outro ambiente? [Conte para a gente](https://github.com/mrlazarias/linux-island/issues).
-
 ## 📄 Licença
 
-[MIT](LICENSE): use, modifique e compartilhe à vontade.
+[MIT](LICENSE): use, modifique e compartilhe à vontade. Baseado no trabalho original de Murilo Azarias (`mrlazarias/linux-island`).
 
 ---
 
-## 🚀 Como usar
+## 🚀 Como usar no Omarchy
 
-### 1. Instale
+### 1. Instale as dependências (Arch Linux) e clone
 
-No Ubuntu, Pop!_OS ou Debian:
+```bash
+sudo pacman -S python-gobject gtk3 gtk-layer-shell python-cairo
+git clone https://github.com/iurynathan/omarchy-island.git ~/projects/omarchy-island
+cd ~/projects/omarchy-island
+./install-omarchy.sh
+./run.sh &
+```
+
+O script `./install-omarchy.sh`:
+- Instala o hook de troca de tema via `omarchy hook install theme-set`.
+- Faz backup e limpa o centro do `~/.config/omarchy/shell.json` (movendo `indicators`, `elsewhen` e `system-update` para `right` e removendo `omarchy.clock` e `omarchy.weather`).
+- Faz backup e adiciona o autostart no `~/.config/hypr/autostart.lua`.
+
+### Instalação manual (Ubuntu, Pop!_OS ou Debian)
 
 ```bash
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1
-git clone https://github.com/mrlazarias/linux-island.git
-cd linux-island
+git clone https://github.com/iurynathan/omarchy-island.git
+cd omarchy-island
 ./run.sh
 ```
 

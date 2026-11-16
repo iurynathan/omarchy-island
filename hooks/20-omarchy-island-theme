@@ -1,0 +1,16 @@
+#!/bin/bash
+set -u
+
+if ! pgrep -f "island\.py" >/dev/null 2>&1; then
+  exit 0
+fi
+
+RUN_SH="${OMARCHY_ISLAND_DIR:-$HOME/projects/omarchy-island}/run.sh"
+if [[ ! -x "$RUN_SH" ]]; then
+  SCRIPT_PATH="$(pgrep -af "island\.py" | head -n1 | sed -n 's/.* \([^ ]*island\.py\).*/\1/p')"
+  [[ -n "$SCRIPT_PATH" ]] && RUN_SH="$(dirname "$SCRIPT_PATH")/run.sh"
+fi
+
+if [[ -x "$RUN_SH" ]]; then
+  "$RUN_SH" --reload-theme >/dev/null 2>&1 &
+fi
