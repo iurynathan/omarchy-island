@@ -55,7 +55,8 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.cfg = cfg
         self.monitor = monitor
         self._art_accent = app.last_art_accent
-        self._setup_surface()
+        self.popup = None
+        self._setup_surface(self, cfg["margin_top"])
         self.expanded = False
         self.pinned = False
         self.hovered = False
@@ -98,22 +99,23 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self.full.set_volume(self.player.volume)
 
     # --- superfície layer-shell ----------------------------------------
-    def _setup_surface(self):
-        GtkLayerShell.init_for_window(self)
-        GtkLayerShell.set_namespace(self, "linux-island")
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
+    def _setup_surface(self, win, margin_top):
+        GtkLayerShell.init_for_window(win)
+        GtkLayerShell.set_namespace(win, "linux-island")
+        GtkLayerShell.set_layer(win, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.TOP, True)
         if self.monitor is not None:
-            GtkLayerShell.set_monitor(self, self.monitor)
+            GtkLayerShell.set_monitor(win, self.monitor)
         # -1: ignora a zona exclusiva do painel e fica por cima dele, no lugar do relógio
-        GtkLayerShell.set_exclusive_zone(self, -1)
-        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        GtkLayerShell.set_exclusive_zone(win, -1)
+        GtkLayerShell.set_keyboard_mode(win, GtkLayerShell.KeyboardMode.NONE)
+        GtkLayerShell.set_margin(win, GtkLayerShell.Edge.TOP, margin_top)
 
-        visual = self.get_screen().get_rgba_visual()
+        visual = win.get_screen().get_rgba_visual()
         if visual:
-            self.set_visual(visual)
-        self.set_app_paintable(True)
-        self.get_style_context().add_class("island-window")
+            win.set_visual(visual)
+        win.set_app_paintable(True)
+        win.get_style_context().add_class("island-window")
 
     # --- configuração ---------------------------------------------------
     def _apply(self, key=None):
@@ -150,9 +152,9 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
     def _update_top_margin(self):
         top = self.cfg["margin_top"]
-        if self.expanded:
-            top += Compact.HEIGHT + 4
         GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, top)
+        if self.popup is not None:
+            GtkLayerShell.set_margin(self.popup, GtkLayerShell.Edge.TOP, top + Compact.HEIGHT + 4)
 
     def _apply_accent(self):
         cfg = self.cfg
@@ -180,35 +182,40 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             eq.queue_draw()
 
     # --- layout ---------------------------------------------------------
-    def _build(self):
-        self.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK
-                        | Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK
-                        | Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
-        self.connect("button-release-event", self._release)
-        self.connect("scroll-event", self._scroll)
-        self.connect("enter-notify-event", self._enter)
-        self.connect("leave-notify-event", self._leave)
-        self.connect("button-press-event", self._click)
+    def _hook_events(self, win):
+        win.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK
+                       | Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK
+                       | Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        win.connect("button-release-event", self._release)
+        win.connect("scroll-event", self._scroll)
+        win.connect("enter-notify-event", self._enter)
+        win.connect("leave-notify-event", self._leave)
+        win.connect("button-press-event", self._click)
 
+    def _build(self):
+        self._hook_events(self)
         self.shell = Gtk.Box()
         self.shell.get_style_context().add_class("island")
         self.add(self.shell)
 
-        self.stack = Gtk.Stack()
-        self.stack.set_homogeneous(False)
-        self.stack.set_interpolate_size(True)
-        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self.stack.set_transition_duration(TRANSITION_MS)
-        self.shell.pack_start(self.stack, True, True, 0)
-
         self.compact = Compact()
+        self.shell.pack_start(self.compact, True, True, 0)
+
+        self.popup = Gtk.Window(title="linux-island-popup")
+        self._setup_surface(self.popup, self.cfg["margin_top"] + Compact.HEIGHT + 4)
+        self._hook_events(self.popup)
+        self.popup_shell = Gtk.Box()
+        self.popup_shell.get_style_context().add_class("island")
+        self.popup_shell.get_style_context().add_class("expanded")
+        self.popup.add(self.popup_shell)
+
         self.full = Expanded(self.player)
         self.world_page = WorldClockPage(lambda: self.app.open_settings("info"))
         self.water_page = WaterPage(self.water)
         self.agenda_page = AgendaPage(self.agenda, lambda: self.app.open_settings("agenda"))
-        self.stack.add_named(self.compact, "compact")
-        self.stack.add_named(self._build_pages(), "expanded")
-        self.stack.set_visible_child_name("compact")
+        self.popup_shell.pack_start(self._build_pages(), True, True, 0)
+
+        self.connect("destroy", lambda *_a: self.popup and self.popup.destroy())
 
         # alerta de água no miolo da pílula
         alert = Gtk.Box(spacing=8)
@@ -233,12 +240,13 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
         def step(_w, _clock):
             self.resize(1, 1)
+            if self.expanded and self.popup is not None:
+                self.popup.resize(1, 1)
             if GLib.get_monotonic_time() - start > (TRANSITION_MS + 120) * 1000:
                 self._resize_tick = None
-                if not self.expanded:
-                    w = self.get_allocated_width()
-                    if w > 40:
-                        self.app.schedule_spacer_sync(w)
+                w = self.get_allocated_width()
+                if w > 40:
+                    self.app.schedule_spacer_sync(w)
                 return False
             return True
 
@@ -251,10 +259,6 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         if not value and getattr(self, "pinned", False):
             self.set_pinned(False)
         log("expanded", value)
-        self._update_top_margin()
-        ctx = self.shell.get_style_context()
-        (ctx.add_class if value else ctx.remove_class)("expanded")
-        self.stack.set_visible_child_name("expanded" if value else "compact")
         if value:  # ao expandir, a pílula volta ao relógio para quando fechar
             self._cancel("track_peek")
             self._cancel("notif_peek")
@@ -264,7 +268,10 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
                 self.set_page(self._alert_page())
             elif self.pages.get_visible_child_name() == "agenda":
                 self.agenda_page.update(self.cfg)
+            self.popup.show_all()
+            self._sync_page_dots()
         else:
+            self.popup.hide()
             self.set_page(self._alert_page())
         self._follow_size()
         if value:

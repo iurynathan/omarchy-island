@@ -40,14 +40,16 @@ class InputMixin:
             GLib.source_remove(sid)
 
     def _pointer_inside(self):
-        """Pergunta ao GDK se o ponteiro está sobre a nossa superfície.
-
-        Os detalhes de enter/leave não servem: o GTK3 no Wayland gera pares
-        enter/leave "fantasmas" ao cruzar as GdkWindows internas do Stack.
-        """
+        """Pergunta ao GDK se o ponteiro está sobre a pílula na barra ou sobre o popup."""
         seat = self.get_display().get_default_seat()
         win = seat.get_pointer().get_window_at_position()[0] if seat else None
-        return win is not None and win.get_toplevel() == self.get_window()
+        if win is None:
+            return False
+        top = win.get_toplevel()
+        if top == self.get_window():
+            return True
+        popup = getattr(self, "popup", None)
+        return popup is not None and popup.get_visible() and top == popup.get_window()
 
     def _recheck_hover(self):
         if self._press is not None:
@@ -106,7 +108,7 @@ class InputMixin:
             self.player.play_pause()
         return False
 
-    def _release(self, _w, ev):
+    def _release(self, w, ev):
         if ev.button != 1 or self._press is None:
             return False
         x0, y0, _t = self._press
@@ -116,14 +118,13 @@ class InputMixin:
         if self.expanded and abs(dx) >= SWIPE_PX and abs(dx) > abs(dy):
             self.turn_page(1 if dx < 0 else -1)  # arrastar para a esquerda = próxima
         elif abs(dx) <= CLICK_SLOP_PX and abs(dy) <= CLICK_SLOP_PX:
-            # Aberta, um clique numa área livre não faz nada (fechava sem querer).
-            # Fecha ao tirar o mouse, ou pelo botão de fixar.
-            if not self.expanded:
-                if self.open_notification_app():
+            if w == self:
+                if not self.expanded and self.open_notification_app():
                     return False  # clique numa notificação abre o app que notificou
                 for t in ("expand", "collapse"):
                     self._cancel(t)
-                self.set_expanded(True)
+                self._closed_by_click = self.expanded
+                self.set_expanded(not self.expanded)
         self._later("hover", 30, self._recheck_hover)
         return False
 
