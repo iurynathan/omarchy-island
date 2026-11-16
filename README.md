@@ -2,6 +2,8 @@
 
 # omarchy-island
 
+**Português** | [English](README.en.md) | [Español](README.es.md)
+
 **Dynamic Island nativa para o Omarchy (Hyprland + Wayland).**
 
 Baseado no [linux-island](https://github.com/mrlazarias/linux-island) de Murilo Azarias, redesenhado para se fundir à barra de 26px do Omarchy, abrir como um painel flutuante abaixo da barra, rodar em múltiplos monitores e sincronizar automaticamente com os temas e o áudio do sistema.
