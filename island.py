@@ -57,6 +57,7 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.monitor = monitor
         self._art_accent = app.last_art_accent
         self.popup = None
+        self.backdrop = None
         self._setup_surface(self, cfg["margin_top"])
         self.expanded = False
         self.pinned = False
@@ -210,10 +211,28 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.compact = Compact(self.player)
         self.shell.pack_start(self.compact, True, True, 0)
 
+        self.backdrop = Gtk.Window(title="linux-island-backdrop")
+        GtkLayerShell.init_for_window(self.backdrop)
+        GtkLayerShell.set_namespace(self.backdrop, "linux-island-backdrop")
+        GtkLayerShell.set_layer(self.backdrop, GtkLayerShell.Layer.TOP)
+        for edge in (GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM,
+                     GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT):
+            GtkLayerShell.set_anchor(self.backdrop, edge, True)
+        if self.monitor is not None:
+            GtkLayerShell.set_monitor(self.backdrop, self.monitor)
+        GtkLayerShell.set_exclusive_zone(self.backdrop, -1)
+        GtkLayerShell.set_keyboard_mode(self.backdrop, GtkLayerShell.KeyboardMode.NONE)
+        b_vis = self.backdrop.get_screen().get_rgba_visual()
+        if b_vis:
+            self.backdrop.set_visual(b_vis)
+        self.backdrop.set_app_paintable(True)
+        self.backdrop.get_style_context().add_class("island-window")
+        self.backdrop.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.backdrop.connect("button-press-event", lambda *_a: self.set_expanded(False) or True)
+
         self.popup = Gtk.Window(title="linux-island-popup")
         self._setup_surface(self.popup, self.cfg["margin_top"] + Compact.HEIGHT + 4)
         self._hook_events(self.popup)
-        self.popup.connect("focus-out-event", self._on_popup_focus_out)
         self.popup_shell = Gtk.Box()
         self.popup_shell.get_style_context().add_class("island")
         self.popup_shell.get_style_context().add_class("expanded")
@@ -225,7 +244,10 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.agenda_page = AgendaPage(self.agenda, lambda: self.app.open_settings("agenda"))
         self.popup_shell.pack_start(self._build_pages(), True, True, 0)
 
-        self.connect("destroy", lambda *_a: self.popup and self.popup.destroy())
+        self.connect("destroy", lambda *_a: (
+            self.popup and self.popup.destroy(),
+            self.backdrop and self.backdrop.destroy(),
+        ))
 
         # alerta de água no miolo da pílula
         alert = Gtk.Box(spacing=8)
@@ -269,17 +291,6 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
         self._resize_tick = self.add_tick_callback(step)
 
-    def _on_popup_focus_out(self, _w, _ev):
-        if self.expanded and self.cfg["click_outside_close"]:
-            GLib.timeout_add(50, self._close_if_outside)
-        return False
-
-    def _close_if_outside(self):
-        if self.expanded and self.cfg["click_outside_close"]:
-            if not self.popup.is_active() and not self._pointer_inside():
-                self.set_expanded(False)
-        return False
-
     def set_expanded(self, value):
         if value == self.expanded:
             return
@@ -294,17 +305,16 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
                 self.set_page(self._alert_page())
             elif self.pages.get_visible_child_name() == "agenda":
                 self.agenda_page.update(self.cfg)
-            GtkLayerShell.set_keyboard_mode(
-                self.popup,
-                GtkLayerShell.KeyboardMode.ON_DEMAND if self.cfg["click_outside_close"]
-                else GtkLayerShell.KeyboardMode.NONE,
-            )
+            if self.backdrop is not None:
+                if self.cfg["click_outside_close"]:
+                    self.backdrop.show()
+                else:
+                    self.backdrop.hide()
             self.popup.show_all()
-            if self.cfg["click_outside_close"]:
-                self.popup.present()
             self._sync_page_dots()
         else:
-            GtkLayerShell.set_keyboard_mode(self.popup, GtkLayerShell.KeyboardMode.NONE)
+            if self.backdrop is not None:
+                self.backdrop.hide()
             self.popup.hide()
             self.set_page(self._alert_page())
         self._follow_size()
