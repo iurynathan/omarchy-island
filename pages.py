@@ -7,18 +7,27 @@ from datetime import datetime
 
 from gi.repository import Gio, Gtk
 
+from i18n import _
 from notifications import OWN_APP, parse_ignore
 
 from pointer import log
+from views import icon
 from water import play_sound
 
 TRANSITION_MS = 320
-PAGES = ("home", "water", "agenda")  # páginas da ilha expandida, na ordem do arrasto
+PAGES = ("home", "world", "water", "agenda")  # páginas da ilha expandida, na ordem do arrasto
 
 
 class PagesMixin:
+    def _active_pages(self):
+        pages = ["home"]
+        if self.cfg["world_clock_mode"] in ("page", "both"):
+            pages.append("world")
+        pages.extend(["water", "agenda"])
+        return pages
+
     def _build_pages(self):
-        """Ilha expandida: páginas lado a lado (arrastar para o lado troca) + pontinhos."""
+        """Ilha expandida: páginas lado a lado (arrastar ou botões laterais) + pontinhos."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.pages = Gtk.Stack()
         self.pages.set_homogeneous(False)
@@ -26,13 +35,25 @@ class PagesMixin:
         self.pages.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.pages.set_transition_duration(TRANSITION_MS)
         self.pages.add_named(self.full, "home")
+        self.pages.add_named(self.world_page, "world")
         self.pages.add_named(self.water_page, "water")
         self.pages.add_named(self.agenda_page, "agenda")
         box.pack_start(self.pages, False, False, 0)
 
+        nav = Gtk.Box(spacing=10)
+        nav.set_halign(Gtk.Align.CENTER)
+        nav.set_margin_bottom(10)
+
+        prev_btn = Gtk.Button()
+        prev_btn.add(icon("go-previous-symbolic", 13))
+        prev_btn.set_relief(Gtk.ReliefStyle.NONE)
+        prev_btn.set_can_focus(False)
+        prev_btn.set_tooltip_text(_("Página anterior"))
+        prev_btn.get_style_context().add_class("nav-arrow")
+        prev_btn.connect("clicked", lambda *_a: self.turn_page(-1, wrap=True))
+
         dots = Gtk.Box(spacing=6)
-        dots.set_halign(Gtk.Align.CENTER)
-        dots.set_margin_bottom(10)
+        dots.set_valign(Gtk.Align.CENTER)
         self.dots = {}
         for name in PAGES:
             dot = Gtk.Button()
@@ -41,9 +62,30 @@ class PagesMixin:
             dot.connect("clicked", lambda _b, n=name: self.set_page(n))
             dots.pack_start(dot, False, False, 0)
             self.dots[name] = dot
-        box.pack_start(dots, False, False, 0)
+
+        next_btn = Gtk.Button()
+        next_btn.add(icon("go-next-symbolic", 13))
+        next_btn.set_relief(Gtk.ReliefStyle.NONE)
+        next_btn.set_can_focus(False)
+        next_btn.set_tooltip_text(_("Próxima página"))
+        next_btn.get_style_context().add_class("nav-arrow")
+        next_btn.connect("clicked", lambda *_a: self.turn_page(1, wrap=True))
+
+        nav.pack_start(prev_btn, False, False, 0)
+        nav.pack_start(dots, False, False, 0)
+        nav.pack_start(next_btn, False, False, 0)
+        box.pack_start(nav, False, False, 0)
         self._mark_dot("home")
         return box
+
+    def _sync_page_dots(self):
+        active = set(self._active_pages())
+        for name, dot in self.dots.items():
+            dot.set_visible(name in active)
+            dot.set_no_show_all(name not in active)
+        cur = self.pages.get_visible_child_name()
+        if cur not in active:
+            self.set_page("home")
 
     def _mark_dot(self, name):
         for n, dot in self.dots.items():
@@ -53,7 +95,9 @@ class PagesMixin:
     def set_page(self, name):
         if name == self.pages.get_visible_child_name():
             return
-        if name == "water":
+        if name == "world":
+            self.world_page.update(self.cfg)
+        elif name == "water":
             self.water_page.update(self.cfg)
         elif name == "agenda":
             self.agenda_page.update(self.cfg)
@@ -62,11 +106,19 @@ class PagesMixin:
         self._mark_dot(name)
         self._follow_size()
 
-    def turn_page(self, step):
-        """step=+1 próxima página (arrastar para a esquerda), -1 anterior."""
-        i = PAGES.index(self.pages.get_visible_child_name()) + step
-        if 0 <= i < len(PAGES):
-            self.set_page(PAGES[i])
+    def turn_page(self, step, wrap=False):
+        """step=+1 próxima página, -1 anterior. wrap=True cicla nas extremidades."""
+        active = self._active_pages()
+        cur = self.pages.get_visible_child_name()
+        try:
+            idx = active.index(cur)
+        except ValueError:
+            idx = 0
+        nxt = idx + step
+        if wrap and active:
+            nxt %= len(active)
+        if 0 <= nxt < len(active):
+            self.set_page(active[nxt])
 
     def _alert_page(self):
         """Página do alerta mais importante (reunião > água), ou a inicial."""

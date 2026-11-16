@@ -72,6 +72,11 @@ SCHEMA = {
     # relógio
     "clock_24h": (True, _is_bool),
     "show_date": (True, _is_bool),
+    "world_clock_mode": ("both", _choice("both", "page", "home", "off")),
+    "world_cities": (
+        "Maceió|America/Maceio, London|Europe/London, Los Angeles|America/Los_Angeles",
+        lambda v: isinstance(v, str) and len(v) <= 1000,
+    ),
     # clima
     "city": ("", lambda v: isinstance(v, str) and len(v) <= 100),
     "units": ("celsius", _choice("celsius", "fahrenheit")),
@@ -104,7 +109,7 @@ SCHEMA = {
         "window-attention", "alarm-clock-elapsed")),
     "agenda_sound_volume": (70, _int_range(0, 100)),
     # notificações de outros apps na pílula
-    "notif_enabled": (True, _is_bool),
+    "notif_enabled": (False, _is_bool),
     "notif_dnd": (False, _is_bool),
     "notif_duration_s": (5, _int_range(2, 15)),
     "notif_show_body": (True, _is_bool),
@@ -118,7 +123,7 @@ SCHEMA = {
     "peek_on_track": (True, _is_bool),
     "scroll_volume": (True, _is_bool),
     "hover_delay_ms": (120, _int_range(0, 2000)),
-    "margin_top": (1, _int_range(0, 200)),
+    "margin_top": (0, _int_range(0, 200)),
 }
 
 
@@ -215,8 +220,8 @@ def build_css(cfg):
     bg, fg = rgba(cfg["bg_color"]), rgba(cfg["text_color"])
     border = f"1px solid {css_color(fg, 0.07)}" if cfg["border"] else "1px solid transparent"
     return f"""
-.island {{ background-color: {css_color(bg)}; color: {css_color(fg)}; border: {border}; }}
-.island.expanded {{ border-radius: {cfg['radius_expanded']}px; }}
+.island {{ background-color: {css_color(bg)}; color: {css_color(fg)}; border: none; border-radius: 0px; }}
+.island.expanded {{ border-radius: {cfg['radius_expanded']}px; border: {border}; }}
 .island .dim, .island .artist {{ color: {css_color(fg, 0.6)}; }}
 .island .time {{ color: {css_color(fg, 0.55)}; }}
 .island .control {{ color: {css_color(fg)}; }}
@@ -224,8 +229,8 @@ def build_css(cfg):
 .island .control:active {{ background-color: {css_color(fg, 0.22)}; }}
 .island .day {{ background-color: {css_color(fg, 0.05)}; }}
 .island separator {{ background-color: {css_color(fg, 0.1)}; }}
-.island.water-alert {{ border-color: rgb(41,158,245); }}
-.island.meeting-alert {{ border-color: rgb(167,139,250); }}
+.island.water-alert {{ border: 1px solid rgb(41,158,245); border-radius: 12px; }}
+.island.meeting-alert {{ border: 1px solid rgb(167,139,250); border-radius: 12px; }}
 .island button.agenda-row {{
   background: transparent; border: none; box-shadow: none; padding: 6px 8px;
   border-radius: 12px; color: {css_color(fg)};
@@ -236,6 +241,11 @@ def build_css(cfg):
   border-radius: 999px; background: {css_color(fg, 0.25)};
 }}
 .island button.page-dot.active {{ background: {css_color(fg, 0.9)}; min-width: 16px; }}
+.island button.nav-arrow {{
+  background: {css_color(fg, 0.08)}; color: {css_color(fg)}; border: none; box-shadow: none;
+  border-radius: 999px; min-width: 22px; min-height: 22px; padding: 2px;
+}}
+.island button.nav-arrow:hover {{ background: {css_color(fg, 0.18)}; }}
 .island button.water-snooze {{
   background: {css_color(fg, 0.08)}; color: {css_color(fg)}; border: none; box-shadow: none;
   border-radius: 999px; padding: 4px 12px; font-size: 11px;

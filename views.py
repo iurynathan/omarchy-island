@@ -73,7 +73,7 @@ class Compact(Gtk.Box):
     Na troca de faixa, o miolo vira "título · artista" por alguns segundos.
     """
 
-    HEIGHT = 24
+    HEIGHT = 26
 
     def __init__(self):
         super().__init__(spacing=0)
@@ -199,6 +199,10 @@ class Expanded(Gtk.Box):
         self.days_box.set_margin_top(12)
         self.days_rev = revealer(self.days_box, Gtk.RevealerTransitionType.SLIDE_DOWN)
         self.pack_start(self.days_rev, False, False, 0)
+        from world_clock import WorldClockHome
+        self.world_home = WorldClockHome()
+        self.world_rev = revealer(self.world_home, Gtk.RevealerTransitionType.SLIDE_DOWN)
+        self.pack_start(self.world_rev, False, False, 0)
         self.music_rev = revealer(self._build_music(), Gtk.RevealerTransitionType.SLIDE_DOWN)
         self.pack_start(self.music_rev, False, False, 0)
 
@@ -233,6 +237,11 @@ class Expanded(Gtk.Box):
     def set_clock(self, now, h24=True):
         self.clock.set_text(clock_text(now, h24))
         self.date.set_text(long_date(now))
+
+    def set_world_clock(self, cfg, now=None):
+        show = cfg["world_clock_mode"] in ("home", "both")
+        has_cities = self.world_home.update(cfg, now) if show else False
+        self.world_rev.set_reveal_child(show and has_cities)
 
     def set_weather(self, fc):
         self.w_icon.set_from_icon_name(fc.icon, Gtk.IconSize.BUTTON)

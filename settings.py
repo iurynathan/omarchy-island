@@ -378,6 +378,23 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         self._row(clock, "Formato 24 horas", self._switch("clock_24h"))
         self._row(clock, "Mostrar data na pílula", self._switch("show_date"))
 
+        world = self._group(page, "Horário mundial")
+        self._row(world, "Exibição", self._choice(
+            "world_clock_mode",
+            [
+                ("both", "Na página inicial e em página própria"),
+                ("page", "Só em página própria"),
+                ("home", "Só na página inicial"),
+                ("off", "Desativado"),
+            ]))
+        self._row(
+            world,
+            "Cidades e fusos",
+            self._text_entry("world_cities", 1000,
+                             "Maceió|America/Maceio, London|Europe/London"),
+            "Formato: Nome|Fuso separados por vírgula (ex.: London|Europe/London)",
+        )
+
         weather = self._group(page, "Clima")
         entry = Gtk.Entry(text=self.cfg["city"], placeholder_text=_("Detectar pelo IP"))
         entry.set_width_chars(18)

@@ -21,19 +21,19 @@ with open(path) as f:
     data = json.load(f)
 
 layout = data.setdefault("bar", {}).setdefault("layout", {})
-drop_ids = {"omarchy.clock", "omarchy.weather"}
-moved = []
+drop_ids = {"omarchy.clock", "omarchy.weather", "omarchy.elsewhen"}
 
-for sec in ("centerBegin", "center", "centerEnd"):
-    for item in layout.get(sec, []):
-        if isinstance(item, dict) and item.get("id") not in drop_ids:
-            moved.append(item)
-    layout[sec] = []
+layout["centerBegin"] = [
+    item for item in layout.get("centerBegin", [{"id": "omarchy.indicators"}])
+    if isinstance(item, dict) and item.get("id") not in drop_ids
+] or [{"id": "omarchy.indicators"}]
 
-right = layout.setdefault("right", [])
-existing_right_ids = {item.get("id") for item in right if isinstance(item, dict)}
-prepend = [item for item in moved if item.get("id") not in existing_right_ids]
-layout["right"] = prepend + right
+layout["center"] = [{"id": "omarchy.spacer", "size": 210}]
+
+layout["centerEnd"] = [
+    item for item in layout.get("centerEnd", [])
+    if isinstance(item, dict) and item.get("id") not in drop_ids
+]
 
 with open(path, "w") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)

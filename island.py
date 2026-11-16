@@ -37,6 +37,7 @@ from water import Notifier, Water, play_sound  # noqa: E402
 from water_view import DropIcon, WaterPage  # noqa: E402
 from agenda import Agenda  # noqa: E402
 from agenda_view import AgendaPage, MeetingPill  # noqa: E402
+from world_clock import WorldClockPage  # noqa: E402
 from weather import Weather  # noqa: E402
 from widgets import accent_from_pixbuf  # noqa: E402
 
@@ -148,9 +149,11 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self.water_page.set_fg((fg.red, fg.green, fg.blue))
         if key is None or key in ("accent_auto", "accent_color"):
             self._apply_accent()
-        if key is None or key == "clock_24h":
+        if key is None or key in ("clock_24h", "world_clock_mode", "world_cities"):
             self._minute = None
             self._tick_clock()
+            self.world_page.update(cfg)
+            self._sync_page_dots()
         if key is None or key in ("show_date", "show_weather"):
             self.compact.set_visibility(cfg["show_date"], cfg["show_weather"])
         if key == "player_ignore":
@@ -210,6 +213,7 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
         self.compact = Compact()
         self.full = Expanded(self.player)
+        self.world_page = WorldClockPage(lambda: self.app.open_settings("info"))
         self.water_page = WaterPage(self.water)
         self.agenda_page = AgendaPage(self.agenda, lambda: self.app.open_settings("agenda"))
         self.stack.add_named(self.compact, "compact")
@@ -281,6 +285,9 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._minute = now.minute
             self.compact.set_clock(now, self.cfg["clock_24h"])
             self.full.set_clock(now, self.cfg["clock_24h"])
+            self.full.set_world_clock(self.cfg, now)
+            if self.pages.get_visible_child_name() == "world":
+                self.world_page.update(self.cfg, now)
             if self.agenda.alert:  # atualiza a contagem regressiva da reunião
                 self._refresh_middle()
             self._on_agenda_change()
