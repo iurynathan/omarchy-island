@@ -28,7 +28,7 @@ layout["centerBegin"] = [
     if isinstance(item, dict) and item.get("id") not in drop_ids
 ] or [{"id": "omarchy.indicators"}]
 
-layout["center"] = [{"id": "omarchy.spacer", "size": 210}]
+layout["center"] = [{"id": "omarchy.spacer", "size": 158}]
 
 layout["centerEnd"] = [
     item for item in layout.get("centerEnd", [])

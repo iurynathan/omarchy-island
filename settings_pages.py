@@ -57,6 +57,19 @@ class SettingsPagesMixin:
         from water import SOUNDS, play_sound
 
         scroll, page = self._page()
+        cal = self._group(page, "Calendário local")
+        self._row(cal, "Início da semana", self._choice(
+            "week_start",
+            [
+                ("auto", "Automático"),
+                ("sunday", "Domingo"),
+                ("monday", "Segunda-feira"),
+                ("saturday", "Sábado"),
+            ]))
+        self._row(cal, "Ano de nascimento", self._spin("birth_year", 0, 2100, 1),
+                  "Exibe a barra de progresso da vida (0 = oculto)")
+        self._row(cal, "Expectativa de vida (anos)", self._spin("life_expectancy", 1, 150, 1))
+
         intro = Gtk.Label(xalign=0, wrap=True)
         intro.set_markup(_("Mostra os eventos da sua agenda principal do <b>Google</b> e avisa "
                          "antes das reuniões. Funciona com contas pessoais e corporativas; "

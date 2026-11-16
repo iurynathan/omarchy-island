@@ -64,9 +64,10 @@ class InputMixin:
                             lambda: self._pointer_inside() and self.set_expanded(True))
         else:
             self._cancel("expand")
-            if self.expanded:
+            if self.expanded and not getattr(self, "pinned", False):
                 self._later("collapse", COLLAPSE_DELAY_MS,
-                            lambda: self._pointer_inside() or self.set_expanded(False))
+                            lambda: self._pointer_inside() or self.pinned
+                            or self.set_expanded(False))
 
     def _drop_stale_press(self, ev):
         """Se a soltura do botão se perdeu, não deixa a ilha presa aberta."""
@@ -112,12 +113,14 @@ class InputMixin:
         if self.expanded and abs(dx) >= SWIPE_PX and abs(dx) > abs(dy):
             self.turn_page(1 if dx < 0 else -1)  # arrastar para a esquerda = próxima
         elif abs(dx) <= CLICK_SLOP_PX and abs(dy) <= CLICK_SLOP_PX:
-            if not self.expanded and self.open_notification_app():
-                return False  # clique numa notificação abre o app que notificou
-            for t in ("expand", "collapse"):
-                self._cancel(t)
-            self._closed_by_click = self.expanded
-            self.set_expanded(not self.expanded)
+            # Aberta, um clique numa área livre não faz nada (fechava sem querer).
+            # Fecha ao tirar o mouse, ou pelo botão de fixar.
+            if not self.expanded:
+                if self.open_notification_app():
+                    return False  # clique numa notificação abre o app que notificou
+                for t in ("expand", "collapse"):
+                    self._cancel(t)
+                self.set_expanded(True)
         self._later("hover", 30, self._recheck_hover)
         return False
 

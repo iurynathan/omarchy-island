@@ -12,10 +12,16 @@ from notifications import OWN_APP, parse_ignore
 
 from pointer import log
 from views import icon
-from water import play_sound
+from water_view import DropIcon
 
 TRANSITION_MS = 320
-PAGES = ("home", "world", "water", "agenda")  # páginas da ilha expandida, na ordem do arrasto
+PAGES = ("home", "world", "agenda", "water")  # páginas da ilha expandida, na ordem das abas
+TAB_DEFS = {  # página -> (ícone, rótulo)
+    "home": ("go-home-symbolic", "Início"),
+    "world": ("preferences-system-time-symbolic", "Mundo"),
+    "agenda": ("x-office-calendar-symbolic", "Agenda"),
+    "water": (None, "Água"),
+}
 
 
 class PagesMixin:
@@ -23,12 +29,67 @@ class PagesMixin:
         pages = ["home"]
         if self.cfg["world_clock_mode"] in ("page", "both"):
             pages.append("world")
-        pages.extend(["water", "agenda"])
+        pages.extend(["agenda", "water"])
         return pages
 
     def _build_pages(self):
-        """Ilha expandida: páginas lado a lado (arrastar ou botões laterais) + pontinhos."""
+        """Ilha expandida: abas fixas no topo (não se movem quando a altura muda) + páginas."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        bar = Gtk.Box(spacing=4)
+        bar.get_style_context().add_class("tabbar")
+        for side in ("top", "start", "end"):
+            getattr(bar, f"set_margin_{side}")(12 if side == "top" else 14)
+        self.tabs = {}
+        for name in PAGES:
+            icon_name, text = TAB_DEFS[name]
+            btn = Gtk.Button()
+            btn.set_relief(Gtk.ReliefStyle.NONE)
+            btn.set_can_focus(False)
+            btn.set_tooltip_text(_(text))
+            btn.get_style_context().add_class("tab")
+            inner = Gtk.Box(spacing=6)
+            inner.pack_start(icon(icon_name, 14) if icon_name else DropIcon(14), False, False, 0)
+            lb = Gtk.Label(label=_(text))
+            rev = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_RIGHT,
+                               transition_duration=180)
+            rev.add(lb)
+            inner.pack_start(rev, False, False, 0)
+            btn.add(inner)
+            btn.connect("clicked", lambda _b, n=name: self.set_page(n))
+            bar.pack_start(btn, False, False, 0)
+            self.tabs[name] = (btn, rev)
+
+        self.pin_btn = Gtk.ToggleButton()
+        self.pin_btn.set_relief(Gtk.ReliefStyle.NONE)
+        self.pin_btn.set_can_focus(False)
+        self.pin_btn.add(icon("view-pin-symbolic", 13))
+        self.pin_btn.get_style_context().add_class("tab")
+        self.pin_btn.get_style_context().add_class("pin")
+        self.pin_btn.connect("toggled", self._on_pin_toggled)
+        self._on_pin_toggled(self.pin_btn)
+
+        prev_btn = Gtk.Button()
+        prev_btn.add(icon("go-previous-symbolic", 13))
+        prev_btn.set_relief(Gtk.ReliefStyle.NONE)
+        prev_btn.set_can_focus(False)
+        prev_btn.set_tooltip_text(_("Página anterior"))
+        prev_btn.get_style_context().add_class("tab")
+        prev_btn.connect("clicked", lambda *_a: self.turn_page(-1, wrap=True))
+
+        next_btn = Gtk.Button()
+        next_btn.add(icon("go-next-symbolic", 13))
+        next_btn.set_relief(Gtk.ReliefStyle.NONE)
+        next_btn.set_can_focus(False)
+        next_btn.set_tooltip_text(_("Próxima página"))
+        next_btn.get_style_context().add_class("tab")
+        next_btn.connect("clicked", lambda *_a: self.turn_page(1, wrap=True))
+
+        bar.pack_end(self.pin_btn, False, False, 0)
+        bar.pack_end(next_btn, False, False, 0)
+        bar.pack_end(prev_btn, False, False, 0)
+        box.pack_start(bar, False, False, 0)
+
         self.pages = Gtk.Stack()
         self.pages.set_homogeneous(False)
         self.pages.set_interpolate_size(True)
@@ -36,61 +97,39 @@ class PagesMixin:
         self.pages.set_transition_duration(TRANSITION_MS)
         self.pages.add_named(self.full, "home")
         self.pages.add_named(self.world_page, "world")
-        self.pages.add_named(self.water_page, "water")
         self.pages.add_named(self.agenda_page, "agenda")
+        self.pages.add_named(self.water_page, "water")
         box.pack_start(self.pages, False, False, 0)
-
-        nav = Gtk.Box(spacing=10)
-        nav.set_halign(Gtk.Align.CENTER)
-        nav.set_margin_bottom(10)
-
-        prev_btn = Gtk.Button()
-        prev_btn.add(icon("go-previous-symbolic", 13))
-        prev_btn.set_relief(Gtk.ReliefStyle.NONE)
-        prev_btn.set_can_focus(False)
-        prev_btn.set_tooltip_text(_("Página anterior"))
-        prev_btn.get_style_context().add_class("nav-arrow")
-        prev_btn.connect("clicked", lambda *_a: self.turn_page(-1, wrap=True))
-
-        dots = Gtk.Box(spacing=6)
-        dots.set_valign(Gtk.Align.CENTER)
-        self.dots = {}
-        for name in PAGES:
-            dot = Gtk.Button()
-            dot.set_can_focus(False)
-            dot.get_style_context().add_class("page-dot")
-            dot.connect("clicked", lambda _b, n=name: self.set_page(n))
-            dots.pack_start(dot, False, False, 0)
-            self.dots[name] = dot
-
-        next_btn = Gtk.Button()
-        next_btn.add(icon("go-next-symbolic", 13))
-        next_btn.set_relief(Gtk.ReliefStyle.NONE)
-        next_btn.set_can_focus(False)
-        next_btn.set_tooltip_text(_("Próxima página"))
-        next_btn.get_style_context().add_class("nav-arrow")
-        next_btn.connect("clicked", lambda *_a: self.turn_page(1, wrap=True))
-
-        nav.pack_start(prev_btn, False, False, 0)
-        nav.pack_start(dots, False, False, 0)
-        nav.pack_start(next_btn, False, False, 0)
-        box.pack_start(nav, False, False, 0)
-        self._mark_dot("home")
+        self._mark_tab("home")
         return box
+
+    # --- fixar aberta -----------------------------------------------------
+    def _on_pin_toggled(self, btn):
+        self.pinned = btn.get_active()
+        btn.set_tooltip_text(_("Desafixar") if self.pinned else _("Fixar aberta"))
+        if self.pinned:
+            self._cancel("collapse")
+        else:
+            self._later("hover", 30, self._recheck_hover)
+
+    def set_pinned(self, value):
+        if self.pin_btn.get_active() != value:
+            self.pin_btn.set_active(value)
 
     def _sync_page_dots(self):
         active = set(self._active_pages())
-        for name, dot in self.dots.items():
-            dot.set_visible(name in active)
-            dot.set_no_show_all(name not in active)
+        for name, (btn, _rev) in self.tabs.items():
+            btn.set_visible(name in active)
+            btn.set_no_show_all(name not in active)
         cur = self.pages.get_visible_child_name()
         if cur not in active:
             self.set_page("home")
 
-    def _mark_dot(self, name):
-        for n, dot in self.dots.items():
-            ctx = dot.get_style_context()
+    def _mark_tab(self, name):
+        for n, (btn, rev) in self.tabs.items():
+            ctx = btn.get_style_context()
             (ctx.add_class if n == name else ctx.remove_class)("active")
+            rev.set_reveal_child(n == name)
 
     def set_page(self, name):
         if name == self.pages.get_visible_child_name():
@@ -103,7 +142,7 @@ class PagesMixin:
             self.agenda_page.update(self.cfg)
         log("page", name)
         self.pages.set_visible_child_name(name)
-        self._mark_dot(name)
+        self._mark_tab(name)
         self._follow_size()
 
     def turn_page(self, step, wrap=False):
@@ -217,15 +256,10 @@ class PagesMixin:
         self._follow_size()
 
     def _on_water_alert(self, alerting):
+        """Só a parte visual: som e notificação são disparados uma vez pelo App."""
         log("water alert", alerting)
         ctx = self.shell.get_style_context()
         (ctx.add_class if alerting else ctx.remove_class)("water-alert")
         self._on_water_change()
         self._refresh_middle()
-        if alerting and self.cfg["water_sound"]:
-            play_sound(self.cfg["water_sound_name"], self.cfg["water_sound_volume"])
-        if alerting and self.cfg["water_notify"]:
-            self.app.notify_water(self.water.consumed, self.cfg["water_goal_ml"])
-        elif not alerting:
-            self.app.withdraw_water()
 

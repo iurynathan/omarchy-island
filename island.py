@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""linux-island: "dynamic island" para Wayland (layer-shell) no lugar do relógio do painel.
+"""omarchy-island: "dynamic island" para Wayland (layer-shell) no lugar do relógio do painel.
 
-Mostra hora, data, clima e o Spotify; expande ao passar o mouse.
+Mostra hora, data, clima, horário mundial, agenda, água e mídia em todos os monitores.
 """
+import json
 import os
 import socket
 import sys
@@ -44,71 +45,57 @@ from widgets import accent_from_pixbuf  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_ID = "io.github.mrlazarias.LinuxIsland"
 PEEK_MS = 4000         # quanto tempo a pílula mostra a faixa nova
+SHELL_JSON = os.path.join(GLib.get_user_config_dir(), "omarchy", "shell.json")
 
 
 class Island(PagesMixin, InputMixin, Gtk.Window):
-    def __init__(self, app, cfg):
+    def __init__(self, app, cfg, monitor=None):
         super().__init__(title="linux-island")
         self.app = app
         self.cfg = cfg
-        self._art_accent = None
+        self.monitor = monitor
+        self._art_accent = app.last_art_accent
         self._setup_surface()
         self.expanded = False
+        self.pinned = False
         self.hovered = False
         self._timers = {}
         self._resize_tick = None
         self._last_click = None
         self._closed_by_click = False
-        self._sync_counter = 0
         self._minute = None
-
-        self.player = Players(self._on_presence, self._on_track, self._on_status,
-                              self._on_art, self._on_volume, on_switch=self._on_player_switch,
-                              ignored=self._player_ignored)
         self._last_scroll = None
         self._scroll_acc = 0.0
         self._last_discrete = None
         self._press = None
         self._hscroll = 0.0
-        self.water = Water(cfg, self._on_water_change, self._on_water_alert)
-        self.agenda = Agenda(cfg, self._on_agenda_change, self._on_agenda_alert,
-                             self._on_agenda_status, play_sound)
-        self._build()
-        self.weather = Weather(self._on_weather, cfg["city"], cfg["units"])
-        self.web_status = ("Conectado", True)
-        self.web = SpotifyWeb(cfg["spotify_client_id"], self._on_playback, self._on_web_status)
-        if not self.web.connected:
-            self.web_status = (_("Não conectado"), False)
+
+        # serviços compartilhados no App (sincronizados entre todos os monitores)
+        self.player = app.player
+        self.water = app.water
+        self.agenda = app.agenda
+        self.weather = app.weather
+        self.web = app.web
         self._notif_queue, self._notif_current = [], None
-        self.notifications = NotificationWatcher(self._on_notification)
+
+        self._build()
         self._apply()
-        cfg.connect(self._apply)
-        self._watch_omarchy_theme()
         self.show_all()
-        GLib.timeout_add(250, self._tick_music)
-        GLib.timeout_add(1000, self._tick_clock)
+        self._sync_page_dots()
 
-    def _watch_omarchy_theme(self):
-        self._theme_mon = None
-        gen_path = os.path.join(GLib.get_user_state_dir(), "omarchy", "current", "theme.generation")
-        if not os.path.exists(os.path.dirname(gen_path)):
-            return
-        try:
-            self._theme_mon = Gio.File.new_for_path(gen_path).monitor_file(
-                Gio.FileMonitorFlags.NONE, None)
-            self._theme_mon.connect("changed", self._on_omarchy_theme_changed)
-        except GLib.Error as e:
-            log("theme monitor erro:", e.message)
-
-    def _on_omarchy_theme_changed(self, _mon, _file, _other, event):
-        if event in (Gio.FileMonitorEvent.CHANGED,
-                     Gio.FileMonitorEvent.CREATED,
-                     Gio.FileMonitorEvent.CHANGES_DONE_HINT):
-            self._later("omarchy_theme", 150, self._reload_omarchy_theme)
-
-    def _reload_omarchy_theme(self):
-        self.cfg.sync_omarchy_theme(notify=True)
-        self._apply()
+        # hidrata estado atual se o monitor foi conectado depois
+        if app.last_fc:
+            self._on_weather(app.last_fc)
+        if app.last_art_pb is not None:
+            self.compact.art.set_source(app.last_art_pb)
+            self.full.art.set_source(app.last_art_pb)
+            self._apply_accent()
+        if self.player.track:
+            self._on_track(self.player.track, initial=True)
+        if app.last_pb:
+            self._on_playback(app.last_pb)
+        if self.player.volume is not None:
+            self.full.set_volume(self.player.volume)
 
     # --- superfície layer-shell ----------------------------------------
     def _setup_surface(self):
@@ -116,6 +103,8 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         GtkLayerShell.set_namespace(self, "linux-island")
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
+        if self.monitor is not None:
+            GtkLayerShell.set_monitor(self, self.monitor)
         # -1: ignora a zona exclusiva do painel e fica por cima dele, no lugar do relógio
         GtkLayerShell.set_exclusive_zone(self, -1)
         GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
@@ -126,22 +115,12 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.set_app_paintable(True)
         self.get_style_context().add_class("island-window")
 
-        css = Gtk.CssProvider()
-        css.load_from_path(os.path.join(HERE, "style.css"))
-        Gtk.StyleContext.add_provider_for_screen(
-            Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        # cores e cantos vindos da configuração, por cima do style.css
-        self.dyn_css = Gtk.CssProvider()
-        Gtk.StyleContext.add_provider_for_screen(
-            Gdk.Screen.get_default(), self.dyn_css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
-
     # --- configuração ---------------------------------------------------
     def _apply(self, key=None):
         """Aplica a configuração inteira (key=None) ou só o que mudou."""
         cfg = self.cfg
         look = ("bg_color", "text_color", "border", "radius_expanded")
         if key is None or key in look:
-            self.dyn_css.load_from_data(build_css(cfg).encode())
             fg = rgba(cfg["text_color"])
             for bar in (self.full.progress, self.full.vol_bar):
                 bar.fg = (fg.red, fg.green, fg.blue)
@@ -156,19 +135,10 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._sync_page_dots()
         if key is None or key in ("show_date", "show_weather"):
             self.compact.set_visibility(cfg["show_date"], cfg["show_weather"])
-        if key == "player_ignore":
-            self.player.refresh_choice()
-        if key in ("city", "units"):
-            self.weather.configure(cfg["city"], cfg["units"])
-        if key == "spotify_client_id":
-            self.web.set_client_id(cfg["spotify_client_id"])
-        if key is None or (key or "").startswith("agenda_"):
-            if key in ("agenda_enabled", "agenda_days"):
-                self.agenda.refresh()
-            self.agenda.tick()
+        if key is None or (key or "").startswith("agenda_") or key in (
+                "week_start", "birth_year", "life_expectancy"):
             self._on_agenda_change()
         if key is None or (key or "").startswith("water_"):
-            self.water.tick()
             self._on_water_change()
         if key is None or key == "margin_top":
             GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, cfg["margin_top"])
@@ -187,8 +157,6 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
     # --- layout ---------------------------------------------------------
     def _build(self):
-        # Eventos na própria janela: o Gtk.Stack tem GdkWindow própria, então
-        # cliques sobem direto para a janela e um EventBox no meio não os vê.
         self.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK
                         | Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK
                         | Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
@@ -198,8 +166,6 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         self.connect("leave-notify-event", self._leave)
         self.connect("button-press-event", self._click)
 
-        # Sem margem transparente em volta: no Wayland/GTK3 a região de input
-        # não funciona aqui, e qualquer área transparente bloquearia cliques.
         self.shell = Gtk.Box()
         self.shell.get_style_context().add_class("island")
         self.add(self.shell)
@@ -245,6 +211,10 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self.resize(1, 1)
             if GLib.get_monotonic_time() - start > (TRANSITION_MS + 120) * 1000:
                 self._resize_tick = None
+                if not self.expanded:
+                    w = self.get_allocated_width()
+                    if w > 40:
+                        self.app.schedule_spacer_sync(w)
                 return False
             return True
 
@@ -254,6 +224,8 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
         if value == self.expanded:
             return
         self.expanded = value
+        if not value and getattr(self, "pinned", False):
+            self.set_pinned(False)
         log("expanded", value)
         ctx = self.shell.get_style_context()
         (ctx.add_class if value else ctx.remove_class)("expanded")
@@ -265,6 +237,8 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._refresh_middle()
             if self._alert_page() != "home":
                 self.set_page(self._alert_page())
+            elif self.pages.get_visible_child_name() == "agenda":
+                self.agenda_page.update(self.cfg)
         else:
             self.set_page(self._alert_page())
         self._follow_size()
@@ -305,38 +279,25 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
             self._on_track(None)
             self._on_status(False)
 
-    def _on_track(self, track):
+    def _on_track(self, track, initial=False):
         prev = self.full.title.get_text() if self.full.music_rev.get_reveal_child() else ""
         self.full.set_track(track)
         if track:
             self.compact.set_track_text(track.title, track.artist)
         self.compact.set_music(track is not None, self.player.playing)
         self._follow_size()
-        self.web.kick()
-        if track and prev and prev != track.title:
+        if not initial and track and prev and prev != track.title:
             self._peek()
 
     def _on_status(self, playing):
         self.compact.set_music(self.player.track is not None, playing)
         self.full.set_playing(playing)
         self._follow_size()
-        self.web.kick()
-
-    # --- Spotify Web API (playlist e dispositivo) -----------------------
-    def _player_ignored(self, p):
-        """Players que o usuário pediu para ignorar (ex.: navegadores)."""
-        names = parse_names(self.cfg["player_ignore"])
-        ident = (p.identity or "").lower()
-        return any(n == p.short or n in ident for n in names)
 
     def _on_player_switch(self, p):
-        log("player ativo", p and p.identity)
         if p is None or not p.is_spotify:
-            # playlist e dispositivo só fazem sentido para o Spotify
             self.full.set_playback(None)
             self.compact.set_remote_device(None)
-        else:
-            self.web.kick()
         self._follow_size()
 
     def _on_playback(self, pb):
@@ -349,46 +310,42 @@ class Island(PagesMixin, InputMixin, Gtk.Window):
 
     @staticmethod
     def _is_this_computer(pb):
-        # o app de desktop se registra com o hostname como nome do dispositivo
         return pb.device_type == "computer" and pb.device.lower() == socket.gethostname().lower()
 
-    def _on_web_status(self, text, ok):
-        self.web_status = (text, ok)
-        if self.app.settings:
-            self.app.settings.set_spotify_status(text, ok)
-
-    def _on_art(self, path):
-        pb = None
-        if path:
-            try:
-                pb = GdkPixbuf.Pixbuf.new_from_file(path)
-            except GLib.Error as e:
-                print(f"[island] capa inválida: {e.message}")
+    def _on_art(self, pb, accent):
         self.compact.art.set_source(pb)
         self.full.art.set_source(pb)
-        self._art_accent = accent_from_pixbuf(pb) if pb else None
+        self._art_accent = accent
         self._apply_accent()
 
     def _tick_music(self):
         p = self.player
-        if p.track:
-            if p.playing:
-                self._sync_counter += 1
-                if self._sync_counter % 12 == 0:  # ressincroniza a cada ~3s
-                    p.sync_position()
-            if self.expanded:
-                self.full.set_position(p.position(), p.track.length)
+        if p.track and self.expanded:
+            self.full.set_position(p.position(), p.track.length)
         return True
 
 
 class App(Gtk.Application):
-    """Instância única: rodar de novo (ex.: --settings) fala com a que já existe."""
+    """Instância única: gerencia uma janela Island por monitor conectado."""
 
     def __init__(self):
         super().__init__(application_id=APP_ID,
                          flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
-        self.island = None
+        self.cfg = None
+        self.islands = {}  # Gdk.Monitor -> Island
         self.settings = None
+        self.dyn_css = None
+        self._theme_mon = None
+        self._sync_counter = 0
+        self._spacer_timer = None
+        self._last_spacer_size = None
+
+        self.last_fc = None
+        self.last_pb = None
+        self.last_art_pb = None
+        self.last_art_accent = None
+        self.web_status = (_("Não conectado"), False)
+
         self.add_main_option("settings", ord("s"), GLib.OptionFlags.NONE,
                              GLib.OptionArg.NONE, _("Abre as configurações"), None)
         self.add_main_option("city", 0, GLib.OptionFlags.NONE, GLib.OptionArg.STRING,
@@ -397,7 +354,14 @@ class App(Gtk.Application):
                              _("Distância do topo só nesta execução"), "PX")
         self.add_main_option("reload-theme", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
                              _("Recarrega o tema do Omarchy"), None)
+        self.add_main_option("restart", ord("r"), GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
+                             _("Reinicia a ilha"), None)
         self.notifier = Notifier(self._notif_action)
+
+    @property
+    def island(self):
+        """Retorna a primeira Island ativa (compatibilidade)."""
+        return next(iter(self.islands.values()), None)
 
     def notify_water(self, consumed, goal):
         self.notifier.notify(consumed, goal)
@@ -406,26 +370,244 @@ class App(Gtk.Application):
         self.notifier.close()
 
     def _notif_action(self, action):
-        if self.island is None:
+        if self.cfg is None:
             return
         if action == "drink":
-            self.island.water.drink()
+            self.water.drink()
         elif action == "snooze":
-            self.island.water.snooze()
+            self.water.snooze()
+
+    # --- inicialização e monitores --------------------------------------
+    def _init_services(self, cfg):
+        self.cfg = cfg
+        css = Gtk.CssProvider()
+        css.load_from_path(os.path.join(HERE, "style.css"))
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.dyn_css = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), self.dyn_css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        self.dyn_css.load_from_data(build_css(cfg).encode())
+
+        self.player = Players(self._on_presence, self._on_track, self._on_status,
+                              self._on_art, self._on_volume, on_switch=self._on_player_switch,
+                              ignored=self._player_ignored)
+        self.water = Water(cfg, self._on_water_change, self._on_water_alert)
+        self.agenda = Agenda(cfg, self._on_agenda_change, self._on_agenda_alert,
+                             self._on_agenda_status, play_sound)
+        self.weather = Weather(self._on_weather, cfg["city"], cfg["units"])
+        self.web_status = ("Conectado", True)
+        self.web = SpotifyWeb(cfg["spotify_client_id"], self._on_playback, self._on_web_status)
+        if not self.web.connected:
+            self.web_status = (_("Não conectado"), False)
+        self.notifications = NotificationWatcher(self._on_notification)
+
+        cfg.connect(self._on_cfg_change)
+        self._watch_omarchy_theme()
+
+        display = Gdk.Display.get_default()
+        for i in range(display.get_n_monitors()):
+            self._add_monitor(display.get_monitor(i))
+        display.connect("monitor-added", lambda _d, m: self._add_monitor(m))
+        display.connect("monitor-removed", lambda _d, m: self._remove_monitor(m))
+
+        GLib.timeout_add(250, self._tick_music)
+        GLib.timeout_add(1000, self._tick_clock)
+
+    def _add_monitor(self, monitor):
+        if monitor in self.islands:
+            return
+        isl = Island(self, self.cfg, monitor=monitor)
+        self.islands[monitor] = isl
+        self.add_window(isl)
+
+    def _remove_monitor(self, monitor):
+        isl = self.islands.pop(monitor, None)
+        if isl is not None:
+            isl.destroy()
+
+    def _for_each(self, fn):
+        for isl in list(self.islands.values()):
+            fn(isl)
+
+    # --- eventos globais distribuídos para todas as ilhas ----------------
+    def _on_cfg_change(self, key=None):
+        cfg = self.cfg
+        if key is None or key in ("bg_color", "text_color", "border", "radius_expanded",
+                                  "accent_color"):
+            self.dyn_css.load_from_data(build_css(cfg).encode())
+        if key == "player_ignore":
+            self.player.refresh_choice()
+        if key in ("city", "units"):
+            self.weather.configure(cfg["city"], cfg["units"])
+        if key == "spotify_client_id":
+            self.web.set_client_id(cfg["spotify_client_id"])
+        if key in ("agenda_enabled", "agenda_days"):
+            self.agenda.refresh()
+        if (key or "").startswith("agenda_"):
+            self.agenda.tick()
+        if (key or "").startswith("water_"):
+            self.water.tick()
+        self._for_each(lambda isl: isl._apply(key))
+
+    def _watch_omarchy_theme(self):
+        gen_path = os.path.join(GLib.get_user_state_dir(), "omarchy", "current", "theme.generation")
+        if not os.path.exists(os.path.dirname(gen_path)):
+            return
+        try:
+            self._theme_mon = Gio.File.new_for_path(gen_path).monitor_file(
+                Gio.FileMonitorFlags.NONE, None)
+            self._theme_mon.connect("changed", self._on_omarchy_theme_changed)
+        except GLib.Error as e:
+            log("theme monitor erro:", e.message)
+
+    def _on_omarchy_theme_changed(self, _mon, _file, _other, event):
+        if event in (Gio.FileMonitorEvent.CHANGED,
+                     Gio.FileMonitorEvent.CREATED,
+                     Gio.FileMonitorEvent.CHANGES_DONE_HINT):
+            GLib.timeout_add(150, self._reload_omarchy_theme)
+
+    def _reload_omarchy_theme(self):
+        self.cfg.sync_omarchy_theme(notify=True)
+        self._on_cfg_change()
+        return False
+
+    def _player_ignored(self, p):
+        names = parse_names(self.cfg["player_ignore"])
+        ident = (p.identity or "").lower()
+        return any(n == p.short or n in ident for n in names)
+
+    def _on_presence(self, present):
+        self._for_each(lambda isl: isl._on_presence(present))
+
+    def _on_track(self, track):
+        self.web.kick()
+        self._for_each(lambda isl: isl._on_track(track))
+
+    def _on_status(self, playing):
+        self.web.kick()
+        self._for_each(lambda isl: isl._on_status(playing))
+
+    def _on_player_switch(self, p):
+        log("player ativo", p and p.identity)
+        if p is not None and p.is_spotify:
+            self.web.kick()
+        self._for_each(lambda isl: isl._on_player_switch(p))
+
+    def _on_playback(self, pb):
+        self.last_pb = pb
+        self._for_each(lambda isl: isl._on_playback(pb))
+
+    def _on_web_status(self, text, ok):
+        self.web_status = (text, ok)
+        if self.settings:
+            self.settings.set_spotify_status(text, ok)
+
+    def _on_art(self, path):
+        pb = None
+        if path:
+            try:
+                pb = GdkPixbuf.Pixbuf.new_from_file(path)
+            except GLib.Error as e:
+                print(f"[island] capa inválida: {e.message}")
+        self.last_art_pb = pb
+        self.last_art_accent = accent_from_pixbuf(pb) if pb else None
+        self._for_each(lambda isl: isl._on_art(pb, self.last_art_accent))
+
+    def _on_volume(self, v, from_user=False):
+        self._for_each(lambda isl: isl._on_volume(v, from_user=from_user))
+
+    def _on_weather(self, fc):
+        self.last_fc = fc
+        self._for_each(lambda isl: isl._on_weather(fc))
+
+    def _on_water_change(self):
+        self._for_each(lambda isl: isl._on_water_change())
+
+    def _on_water_alert(self, alerting):
+        self._for_each(lambda isl: isl._on_water_alert(alerting))
+        if alerting and self.cfg["water_sound"]:
+            play_sound(self.cfg["water_sound_name"], self.cfg["water_sound_volume"])
+        if alerting and self.cfg["water_notify"]:
+            self.notify_water(self.water.consumed, self.cfg["water_goal_ml"])
+        elif not alerting:
+            self.withdraw_water()
+
+    def _on_agenda_change(self):
+        self._for_each(lambda isl: isl._on_agenda_change())
+
+    def _on_agenda_alert(self, ev):
+        self._for_each(lambda isl: isl._on_agenda_alert(ev))
+
+    def _on_agenda_status(self, text, ok):
+        self._for_each(lambda isl: isl._on_agenda_status(text, ok))
+
+    def _on_notification(self, n):
+        self._for_each(lambda isl: isl._on_notification(n))
+
+    def _tick_music(self):
+        p = self.player
+        if p.track and p.playing:
+            self._sync_counter += 1
+            if self._sync_counter % 12 == 0:
+                p.sync_position()
+        self._for_each(lambda isl: isl._tick_music())
+        return True
+
+    def _tick_clock(self):
+        self._for_each(lambda isl: isl._tick_clock())
+        return True
+
+    # --- ajuste dinâmico do espaçador na barra do Omarchy ----------------
+    def schedule_spacer_sync(self, compact_width):
+        if not self.cfg or not self.cfg["bar_spacer_sync"]:
+            return
+        target = max(80, int(compact_width) + 2)
+        if self._last_spacer_size is not None and abs(target - self._last_spacer_size) < 4:
+            return
+        if self._spacer_timer is not None:
+            GLib.source_remove(self._spacer_timer)
+        self._spacer_timer = GLib.timeout_add(220, self._apply_spacer_size, target)
+
+    def _apply_spacer_size(self, target):
+        self._spacer_timer = None
+        if not os.path.exists(SHELL_JSON):
+            return False
+        try:
+            with open(SHELL_JSON) as f:
+                data = json.load(f)
+            center = data.get("bar", {}).get("layout", {}).get("center", [])
+            changed = False
+            for item in center:
+                if isinstance(item, dict) and item.get("id") == "omarchy.spacer":
+                    if item.get("size") != target:
+                        item["size"] = target
+                        changed = True
+            if changed:
+                tmp = SHELL_JSON + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                    f.write("\n")
+                os.replace(tmp, SHELL_JSON)
+            self._last_spacer_size = target
+        except (OSError, ValueError) as e:
+            log("spacer sync erro:", e)
+        return False
 
     def do_command_line(self, cmdline):
         opts = cmdline.get_options_dict().end().unpack()
         log("command line", opts, "remota" if cmdline.get_is_remote() else "local")
-        if self.island is None:
+        if self.cfg is None:
             margin = opts.get("margin")
             cfg = Config({"city": opts.get("city"),
                           "margin_top": margin if margin is not None and 0 <= margin <= 200
                           else None})
-            self.island = Island(self, cfg)
-            self.add_window(self.island)
+            self._init_services(cfg)
+        elif opts.get("restart"):
+            GLib.idle_add(self.restart)
+            return 0
         elif opts.get("reload-theme"):
-            self.island.cfg.sync_omarchy_theme(notify=True)
-            self.island._apply()
+            self._reload_omarchy_theme()
             return 0
         if opts.get("settings"):
             self.open_settings()
@@ -440,10 +622,9 @@ class App(Gtk.Application):
     def open_settings(self, page=None):
         log("open_settings", self.settings)
         if self.settings is None:
-            isl = self.island
-            self.settings = Settings(isl.cfg, self, isl.web, isl.water, isl.agenda)
-            self.settings.set_spotify_status(*isl.web_status)
-            self.settings.set_agenda_status(*isl.agenda.status)
+            self.settings = Settings(self.cfg, self, self.web, self.water, self.agenda)
+            self.settings.set_spotify_status(*self.web_status)
+            self.settings.set_agenda_status(*self.agenda.status)
             self.settings.connect("destroy", lambda *_a: setattr(self, "settings", None))
         if page:
             self.settings.show_page(page)
@@ -451,7 +632,6 @@ class App(Gtk.Application):
 
 
 def main():
-    # o idioma vale para tudo, até as ajudas da linha de comando: escolhe antes de criar a UI
     i18n.setup(Config()["language"])
     app = App()
     for sig in (2, 15):  # SIGINT, SIGTERM

@@ -79,25 +79,25 @@ class Compact(Gtk.Box):
         super().__init__(spacing=0)
         self.get_style_context().add_class("compact")
         self.set_size_request(-1, self.HEIGHT)
-        self.set_margin_start(10)
-        self.set_margin_end(12)
+        self.set_margin_start(4)
+        self.set_margin_end(6)
 
         self.art = Art(18, 9)
         art_box = Gtk.Box()
-        art_box.set_margin_end(9)
+        art_box.set_margin_end(7)
         art_box.add(self.art)
         self.art_rev = revealer(art_box, Gtk.RevealerTransitionType.SLIDE_RIGHT)
 
         self.clock = label("clock")
         self.date = label("dim")
-        self.date.set_margin_start(7)
+        self.date.set_margin_start(6)
         self.date_rev = revealer(self.date, Gtk.RevealerTransitionType.SLIDE_RIGHT)
         self.date_rev.set_reveal_child(True)
         self.show_weather = True
         self._has_weather = False
 
         wbox = Gtk.Box(spacing=4)
-        wbox.set_margin_start(12)
+        wbox.set_margin_start(8)
         self.w_icon = icon("weather-clear-symbolic", 14)
         self.w_temp = label("temp")
         wbox.pack_start(self.w_icon, False, False, 0)

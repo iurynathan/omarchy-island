@@ -73,6 +73,13 @@ SCHEMA = {
     "clock_24h": (True, _is_bool),
     "show_date": (True, _is_bool),
     "world_clock_mode": ("both", _choice("both", "page", "home", "off")),
+    # calendário local (as mesmas preferências do omarchy.clock)
+    "week_start": ("auto", _choice("auto", "monday", "sunday", "saturday")),
+    "birth_year": (0, _int_range(0, 2100)),
+    "life_expectancy": (90, _int_range(1, 150)),
+    # integração com o Omarchy
+    "omarchy_font": (True, _is_bool),
+    "bar_spacer_sync": (True, _is_bool),
     "world_cities": (
         "Maceió|America/Maceio, London|Europe/London, Los Angeles|America/Los_Angeles",
         lambda v: isinstance(v, str) and len(v) <= 1000,
@@ -218,10 +225,14 @@ def css_color(c, alpha=None):
 def build_css(cfg):
     """CSS gerado a partir da configuração (cores e arredondamento)."""
     bg, fg = rgba(cfg["bg_color"]), rgba(cfg["text_color"])
-    border = f"1px solid {css_color(fg, 0.07)}" if cfg["border"] else "1px solid transparent"
+    ac = rgba(cfg["accent_color"])
+    border = f"1px solid {css_color(fg, 0.08)}" if cfg["border"] else "1px solid transparent"
     return f"""
 .island {{ background-color: {css_color(bg)}; color: {css_color(fg)}; border: none; border-radius: 0px; }}
-.island.expanded {{ border-radius: {cfg['radius_expanded']}px; border: {border}; }}
+.island.expanded {{
+  border-radius: {cfg['radius_expanded']}px; border: {border};
+  box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+}}
 .island .dim, .island .artist {{ color: {css_color(fg, 0.6)}; }}
 .island .time {{ color: {css_color(fg, 0.55)}; }}
 .island .control {{ color: {css_color(fg)}; }}
@@ -242,10 +253,54 @@ def build_css(cfg):
 }}
 .island button.page-dot.active {{ background: {css_color(fg, 0.9)}; min-width: 16px; }}
 .island button.nav-arrow {{
-  background: {css_color(fg, 0.08)}; color: {css_color(fg)}; border: none; box-shadow: none;
-  border-radius: 999px; min-width: 22px; min-height: 22px; padding: 2px;
+  background: {css_color(fg, 0.07)}; color: {css_color(fg, 0.85)}; border: none; box-shadow: none;
+  border-radius: 999px; min-width: 24px; min-height: 24px; padding: 2px;
 }}
-.island button.nav-arrow:hover {{ background: {css_color(fg, 0.18)}; }}
+.island button.nav-arrow:hover {{ background: {css_color(fg, 0.16)}; color: {css_color(fg)}; }}
+.island .tabbar {{
+  background: {css_color(fg, 0.04)}; border-radius: 999px; padding: 3px;
+}}
+.island button.tab {{
+  background: transparent; color: {css_color(fg, 0.65)}; border: none; box-shadow: none;
+  border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+  min-height: 22px; min-width: 22px;
+}}
+.island button.tab:hover {{ background: {css_color(fg, 0.08)}; color: {css_color(fg)}; }}
+.island button.tab.active {{
+  background: {css_color(fg, 0.14)}; color: {css_color(fg)};
+}}
+.island button.tab.pin:checked {{
+  background: {css_color(ac, 0.25)}; color: {css_color(ac)};
+}}
+.island .cal-head {{
+  font-size: 10px; font-weight: 700; color: {css_color(fg, 0.45)}; padding: 2px 0;
+}}
+.island .cal-week {{
+  font-size: 10px; color: {css_color(fg, 0.35)}; padding: 0 4px;
+  font-feature-settings: "tnum";
+}}
+.island button.cal-day {{
+  background: transparent; color: {css_color(fg)}; border: none; box-shadow: none;
+  border-radius: 8px; padding: 2px 0; min-height: 28px; font-size: 12px;
+  font-feature-settings: "tnum";
+}}
+.island button.cal-day:hover {{ background: {css_color(fg, 0.1)}; }}
+.island button.cal-day.other {{ color: {css_color(fg, 0.28)}; }}
+.island button.cal-day.today {{
+  background: {css_color(ac, 0.22)}; color: {css_color(ac)}; font-weight: 700;
+}}
+.island button.cal-day.selected {{
+  background: {css_color(fg, 0.18)}; font-weight: 700;
+}}
+.island .cal-dot {{
+  font-size: 8px; color: {css_color(ac)};
+}}
+.island progressbar.thin trough {{
+  min-height: 5px; border-radius: 999px; background: {css_color(fg, 0.1)}; border: none;
+}}
+.island progressbar.thin progress {{
+  min-height: 5px; border-radius: 999px; background: {css_color(ac)}; border: none;
+}}
 .island button.water-snooze {{
   background: {css_color(fg, 0.08)}; color: {css_color(fg)}; border: none; box-shadow: none;
   border-radius: 999px; padding: 4px 12px; font-size: 11px;

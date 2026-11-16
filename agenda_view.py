@@ -3,7 +3,8 @@ from datetime import datetime
 
 from gi.repository import Gio, Gtk
 
-from agenda import countdown, upcoming
+from agenda import countdown, day_label, upcoming
+from calendar_view import MonthGrid, ProgressRow, life_progress, year_progress
 from i18n import _
 from views import clip, icon, label
 
@@ -50,21 +51,36 @@ class MeetingPill(Gtk.Box):
 
 
 class AgendaPage(Gtk.Box):
+    """Calendário local sempre disponível + eventos do Google quando conectado."""
+
     WIDTH = 420
 
     def __init__(self, agenda, open_settings):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.agenda = agenda
         self.open_settings = open_settings
+        self.selected = None
+        self._cfg = None
         self.set_size_request(self.WIDTH, -1)
         for side in ("top", "bottom", "start", "end"):
             getattr(self, f"set_margin_{side}")(18 if side in ("start", "end") else 14)
 
+        self.grid = MonthGrid(self._on_select)
+        self.pack_start(self.grid, False, False, 0)
+
+        self.year_row = ProgressRow()
+        self.life_row = ProgressRow()
+        self.pack_start(self.year_row, False, False, 0)
+        self.pack_start(self.life_row, False, False, 0)
+
+        sep = Gtk.Separator()
+        sep.set_margin_top(2)
+        self.pack_start(sep, False, False, 0)
+
         head = Gtk.Box(spacing=8)
-        head.pack_start(icon(CAL_ICON, 16), False, False, 0)
-        title = label("title")
-        title.set_text(_("Agenda"))
-        head.pack_start(title, False, False, 0)
+        head.pack_start(icon(CAL_ICON, 14), False, False, 0)
+        self.list_title = label("title")
+        head.pack_start(self.list_title, False, False, 0)
         self.status = label("dim small", 1.0)
         head.pack_end(self.status, True, True, 0)
         self.pack_start(head, False, False, 0)
@@ -72,38 +88,74 @@ class AgendaPage(Gtk.Box):
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.pack_start(self.body, False, False, 0)
 
+    def _on_select(self, d):
+        self.selected = d
+        if self._cfg is not None:
+            self.update(self._cfg, keep_grid=True)
+
     # --- conteúdo ---------------------------------------------------------
-    def update(self, cfg):
+    def update(self, cfg, keep_grid=False):
+        self._cfg = cfg
+        now = datetime.now().astimezone()
+        today = now.date()
+        a = self.agenda
+        marked = {ev["start"].date() for ev in a.events} if a.connected else set()
+        if not keep_grid:
+            self.grid.configure(cfg["week_start"], marked)
+
+        self.year_row.set(_("Ano {ano}").format(ano=today.year),
+                          f"{round(year_progress(today) * 100)}%", year_progress(today))
+        life = life_progress(today, cfg["birth_year"], cfg["life_expectancy"])
+        if life:
+            frac, age, span = life
+            self.life_row.set(_("Vida"), _("{idade} de {total} anos").format(idade=age, total=span),
+                              frac)
+        self.life_row.set_visible(bool(life))
+        self.life_row.set_no_show_all(not life)
+
         for c in self.body.get_children():
             self.body.remove(c)
-        now = datetime.now().astimezone()
-        a = self.agenda
         if not a.connected:
+            self.list_title.set_text(_("Eventos"))
             self.status.set_text("")
-            self._empty(_("Entre com sua conta do Google para ver seus eventos."),
-                        pill_button(_("Configurar"), "preferences-system-symbolic",
-                                    self.open_settings, "water-snooze"))
+            row = Gtk.Box(spacing=10)
+            lb = label("dim small")
+            lb.set_line_wrap(True)
+            lb.set_text(_("Conecte o Google para ver seus eventos aqui (opcional)."))
+            row.pack_start(lb, True, True, 0)
+            row.pack_end(pill_button(_("Conectar"), None, self.open_settings, "water-snooze"),
+                         False, False, 0)
+            self.body.pack_start(row, False, False, 0)
         else:
             self.status.set_text(_("atualizado {hora}").format(hora=f"{datetime.now():%H:%M}")
                                  if a.status[1] else _("sem conexão"))
-            groups = upcoming(now, a.events, cfg["agenda_days"])
-            if a.alert:
-                self.body.pack_start(self._next_card(a.alert, now), False, False, 4)
-            if not groups:
-                self._empty(_("Nada na agenda nos próximos dias."), None)
-            rows = 0
-            for day, events in groups:
-                if rows >= MAX_ROWS:
-                    break
-                d = label("dim small")
-                d.set_text(day.upper())
-                d.set_margin_top(6)
-                self.body.pack_start(d, False, False, 0)
-                for ev in events:
+            if self.selected:
+                self.list_title.set_text(day_label(self.selected, today))
+                events = [ev for ev in a.events if ev["start"].date() == self.selected]
+                if not events:
+                    self._empty(_("Nada na agenda neste dia."), None)
+                for ev in events[:MAX_ROWS]:
+                    self.body.pack_start(self._row(ev, now), False, False, 0)
+            else:
+                self.list_title.set_text(_("Próximos eventos"))
+                if a.alert:
+                    self.body.pack_start(self._next_card(a.alert, now), False, False, 4)
+                groups = upcoming(now, a.events, cfg["agenda_days"])
+                if not groups:
+                    self._empty(_("Nada na agenda nos próximos dias."), None)
+                rows = 0
+                for day, events in groups:
                     if rows >= MAX_ROWS:
                         break
-                    self.body.pack_start(self._row(ev, now), False, False, 0)
-                    rows += 1
+                    d = label("dim small")
+                    d.set_text(day.upper())
+                    d.set_margin_top(6)
+                    self.body.pack_start(d, False, False, 0)
+                    for ev in events:
+                        if rows >= MAX_ROWS:
+                            break
+                        self.body.pack_start(self._row(ev, now), False, False, 0)
+                        rows += 1
         self.body.show_all()
 
     def _empty(self, text, button):
