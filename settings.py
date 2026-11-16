@@ -146,7 +146,6 @@ class Settings(SettingsPagesMixin, Gtk.Window):
         self._sync = {}  # chave -> função que atualiza o widget a partir da config
         self._pending_commits = []
         self._spin_buttons = []
-        self._initial_lang = cfg["language"]
         self.set_default_size(580, 580)
         self.set_icon_name("preferences-system")
         self.get_style_context().add_class("island-settings")
@@ -210,9 +209,6 @@ class Settings(SettingsPagesMixin, Gtk.Window):
     def _apply_and_save(self):
         self._flush_pending()
         app = self.get_application()
-        if self.cfg["language"] != self._initial_lang and app and hasattr(app, "restart"):
-            app.restart()
-            return
         if app and hasattr(app, "apply_all"):
             app.apply_all()
         if hasattr(self, "apply_btn"):
